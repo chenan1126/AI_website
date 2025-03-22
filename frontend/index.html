@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GEMINI API</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>GEMINI API TEST</h1>
+        
+        <div class="input-section">
+            <form id="questionForm">
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="questionInput" 
+                        placeholder="輸入您的問題..."
+                        required
+                    >
+                    <button type="submit" id="submitButton">提交</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="loadingSpinner" style="display: none;">
+            <div class="spinner"></div>
+            <p>正在處理您的請求...</p>
+        </div>
+
+        <div id="errorContainer"></div>
+        <div id="answersContainer" class="answers-grid"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
