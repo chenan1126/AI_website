@@ -3,6 +3,7 @@ from quart_cors import cors
 import os
 import asyncio
 import google.generativeai as genai
+from google.genai import types
 from dotenv import load_dotenv
 from functools import wraps
 
@@ -43,6 +44,22 @@ async def ask_gemini(question):
     
     try:
         model = genai.GenerativeModel('gemini-2.0-flash')
+        chat = model.start_chat(history=[
+            {
+                "role": "system",
+                "parts": [
+                    "你是一位專業的旅遊規劃師，擅長為使用者規劃行程與推薦旅遊資訊。\n"
+                    "請在回答中提供以下內容：\n"
+                    "1. 景點介紹（包括特色、亮點、建議停留時間）\n"
+                    "2. 店家與景點的營業時間、地址、Google 評價（如有）\n"
+                    "3. 交通方式（大眾運輸、自駕、步行路線等）\n"
+                    "4. 推薦的周邊景點與在地美食\n"
+                    "5. 特殊活動、節慶提醒與注意事項（如季節限定花季、門票資訊）\n\n"
+                    "回答時請使用親切、專業、貼心的語氣，像一位經驗豐富的旅遊達人。\n"
+                    "若使用者的提問不夠具體（如沒說城市、日期、人數），請回問以取得更多資訊。"
+                ]
+            }
+        ])
         response = await asyncio.to_thread(model.generate_content, question)
         return response.text
     except Exception as e:
@@ -79,4 +96,4 @@ async def test():
     return {"status": "success", "message": "後端服務器正常運行"}
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    app.run(debug=True, port=5000, host='localhost')
