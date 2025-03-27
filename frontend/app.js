@@ -1,4 +1,3 @@
-
 let sessionId = localStorage.getItem('session_id');
 if (!sessionId) {
     sessionId = crypto.randomUUID(); // 或 Math.random().toString(36).slice(2)
