@@ -1,3 +1,10 @@
+
+let sessionId = localStorage.getItem('session_id');
+if (!sessionId) {
+    sessionId = crypto.randomUUID(); // 或 Math.random().toString(36).slice(2)
+    localStorage.setItem('session_id', sessionId);
+}
+
 // 檢查後端服務器是否在運行
 async function checkServer() {
     try {
@@ -59,7 +66,9 @@ document.getElementById('questionForm').addEventListener('submit', async functio
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ question: questionInput.value }),
+            body: JSON.stringify({ 
+                session_id: sessionId,
+                question: questionInput.value }),
         });
 
         if (!response.ok) {
