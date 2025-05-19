@@ -5,11 +5,7 @@ import os
 import asyncio
 from google import genai
 import logging
-import time
 import aiohttp
-import copy
-import random
-import re
 import requests
 from weather import get_weather
 
