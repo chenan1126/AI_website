@@ -1,39 +1,67 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GEMINI API</title>
+    <title>AI旅遊行程規劃</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <h1>GEMINI API TEST</h1>
+        <header>
+            <div class="logo">
+                <i class="fas fa-route"></i>
+                <h1>AI旅遊行程規劃</h1>
+            </div>
+        </header>
         
-        <div class="input-section">
-            <form id="questionForm">
-                <div class="input-group">
-                    <input 
-                        type="text" 
-                        id="questionInput" 
-                        placeholder="輸入您的問題..."
-                        required
-                    >
-                    <button type="submit" id="submitButton">提交</button>
-                </div>
-            </form>
-        </div>
-
-        <div id="loadingSpinner" style="display: none;">
-            <div class="spinner"></div>
-            <p>正在處理您的請求...</p>
-        </div>
-
         <div id="errorContainer"></div>
-        <div id="answersContainer" class="answers-grid"></div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        
+        <div class="features-section">
+            <div class="feature-card">
+                <h2><i class="fas fa-map-marked-alt"></i> 行程規劃</h2>
+                
+                <form id="questionForm">
+                    <div class="form-group">
+                        <label for="citySelect">選擇城市:</label>
+                        <select id="citySelect" required>
+                            <option value="桃園">桃園市</option>
+                            <option value="嘉義">嘉義市</option>
+                            <option value="高雄">高雄市</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tripTypeSelect">行程類型:</label>
+                        <select id="tripTypeSelect">
+                            <option value="一日">一日遊</option>
+                            <option value="兩日">兩日遊</option>
+                            <option value="三日">三日遊</option>
+                            <option value="美食">美食之旅</option>
+                            <option value="文化">文化之旅</option>
+                            <option value="家庭">親子旅遊</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="questionInput">自定義需求 (選填):</label>
+                        <input type="text" id="questionInput" placeholder="例如：想去夜市、包含登山行程...">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">生成行程</button>
+                </form>
+                
+                <div id="loading" style="display:none;">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">生成中，請稍候...</div>
+                </div>
+                
+                <div id="results"></div>
+            </div>
+        </div>
+        
+    
     <script src="app.js"></script>
 </body>
 </html>
