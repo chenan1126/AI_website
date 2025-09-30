@@ -17,3 +17,4 @@ cmds = [
 [start]
 cmd = "python backend/app.py"
 workingDirectory = "/app"
+workingDirectory = "/app"

@@ -2,6 +2,7 @@ from quart import Quart, request, jsonify
 from quart_cors import cors
 import json
 import os
+import sys
 import asyncio
 import google.generativeai as genai
 import logging
@@ -1321,6 +1322,15 @@ if __name__ == '__main__':
     # 獲取 Railway 或其他平台指定的埠號
     port = int(os.getenv('PORT', 5000))  # 如果沒有 PORT 環境變數，預設使用 5000
 
+    logger.info(f"=== Railway 部署診斷信息 ===")
+    logger.info(f"當前工作目錄: {os.getcwd()}")
+    logger.info(f"Python 路徑: {sys.executable}")
     logger.info(f"啟動後端服務器，監聽埠號: {port}")
     logger.info(f"Railway PORT 環境變數: {os.getenv('PORT', '未設定')}")
+    logger.info(f"Gemini API Key 設定: {'是' if os.getenv('GEMINI_API_KEY') else '否'}")
+    logger.info(f"Google Maps API Key 設定: {'是' if os.getenv('GOOGLE_MAPS_API_KEY') else '否'}")
+    logger.info(f"OpenWeatherMap API Key 設定: {'是' if os.getenv('OPENWEATHERMAP_API_KEY') else '否'}")
+    logger.info(f"前端文件存在: {os.path.exists('frontend/index.html')}")
+    logger.info(f"=================================")
+
     app.run(debug=True, port=port, host='0.0.0.0')
