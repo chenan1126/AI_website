@@ -15,4 +15,4 @@ cmds = [
 ]
 
 [start]
-cmd = "python backend/app.py"
+cmd = "cd /app && python backend/app.py"
