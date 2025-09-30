@@ -435,14 +435,31 @@ async def static_files(filename):
 async def index():
     """提供前端主頁面"""
     try:
-        frontend_path = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'index.html')
-        with open(frontend_path, 'r', encoding='utf-8') as f:
-            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
-    except FileNotFoundError:
-        return "前端文件未找到，請檢查 frontend/index.html 是否存在", 404
+        # 獲取當前工作目錄和腳本目錄
+        current_dir = os.getcwd()
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        frontend_path = os.path.join(script_dir, '..', 'frontend', 'index.html')
+        frontend_abs_path = os.path.abspath(frontend_path)
+
+        logger.info(f"當前工作目錄: {current_dir}")
+        logger.info(f"腳本目錄: {script_dir}")
+        logger.info(f"前端文件路徑: {frontend_abs_path}")
+        logger.info(f"前端文件是否存在: {os.path.exists(frontend_abs_path)}")
+
+        if not os.path.exists(frontend_abs_path):
+            logger.error(f"前端文件不存在: {frontend_abs_path}")
+            return f"前端文件未找到: {frontend_abs_path}", 404
+
+        with open(frontend_abs_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            logger.info(f"成功載入前端文件，大小: {len(content)} 字元")
+            return content, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    except FileNotFoundError as e:
+        logger.error(f"前端文件未找到: {e}")
+        return f"前端文件未找到: {frontend_abs_path}", 404
     except Exception as e:
         logger.error(f"載入前端文件時出錯: {e}")
-        return f"載入前端文件時出錯: {e}", 500
+        return f"載入前端文件時出錯: {str(e)}", 500
 
 @app.route('/health', methods=['GET'])
 async def health_check():
