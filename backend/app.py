@@ -1318,5 +1318,9 @@ async def add_place_details_for_single_itinerary(itinerary, city_name=None):
         return itinerary  # 如果處理失敗，返回原始行程
 
 if __name__ == '__main__':
-    logger.info("啟動後端服務器...")
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    # 獲取 Railway 或其他平台指定的埠號
+    port = int(os.getenv('PORT', 5000))  # 如果沒有 PORT 環境變數，預設使用 5000
+
+    logger.info(f"啟動後端服務器，監聽埠號: {port}")
+    logger.info(f"Railway PORT 環境變數: {os.getenv('PORT', '未設定')}")
+    app.run(debug=True, port=port, host='0.0.0.0')
