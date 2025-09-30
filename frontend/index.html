@@ -24,32 +24,23 @@
                 
                 <form id="questionForm">
                     <div class="form-group">
-                        <label for="citySelect">選擇城市:</label>
-                        <select id="citySelect" required>
-                            <option value="桃園">桃園市</option>
-                            <option value="嘉義">嘉義市</option>
-                            <option value="高雄">高雄市</option>
-                        </select>
+                        <label for="naturalQueryInput">
+                            <i class="fas fa-edit"></i>
+                            請描述您的旅遊需求：
+                        </label>
+                        <div class="input-container">
+                            <textarea id="naturalQueryInput" rows="4" placeholder="例如：這個週末想帶家人去阿里山看日出，大概玩三天&#10;&#10;您可以描述：&#10;• 目的地和景點偏好&#10;• 旅遊天數&#10;• 同行人數和特殊需求&#10;• 預算和交通方式"></textarea>
+                            <div class="input-hint">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>提示：越詳細的描述，AI 規劃的行程越精準！</span>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="tripTypeSelect">行程類型:</label>
-                        <select id="tripTypeSelect">
-                            <option value="一日">一日遊</option>
-                            <option value="兩日">兩日遊</option>
-                            <option value="三日">三日遊</option>
-                            <option value="美食">美食之旅</option>
-                            <option value="文化">文化之旅</option>
-                            <option value="家庭">親子旅遊</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="questionInput">自定義需求 (選填):</label>
-                        <input type="text" id="questionInput" placeholder="例如：想去夜市、包含登山行程...">
-                    </div>
-                    
-                    <button type="submit" class="btn-primary">生成行程</button>
+
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-magic"></i>
+                        生成行程
+                    </button>
                 </form>
                 
                 <div id="loading" style="display:none;">
@@ -57,7 +48,7 @@
                     <div class="loading-text">生成中，請稍候...</div>
                 </div>
                 
-                <div id="results"></div>
+                <div id="results" class="response-wrapper"></div>
             </div>
         </div>
         
