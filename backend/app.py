@@ -444,6 +444,11 @@ async def index():
         logger.error(f"載入前端文件時出錯: {e}")
         return f"載入前端文件時出錯: {e}", 500
 
+@app.route('/health', methods=['GET'])
+async def health_check():
+    """健康檢查端點"""
+    return {"status": "healthy", "message": "AI 旅遊規劃系統運行正常"}, 200
+
 @app.route('/ask', methods=['POST'])
 async def ask():
     """處理用戶問題請求"""
