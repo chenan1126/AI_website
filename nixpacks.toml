@@ -15,4 +15,5 @@ cmds = [
 ]
 
 [start]
-cmd = "cd /app && python backend/app.py"
+cmd = "python backend/app.py"
+workingDirectory = "/app"
