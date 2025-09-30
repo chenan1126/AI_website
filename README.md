@@ -5,7 +5,7 @@
 ## 🌟 功能特色
 
 - 🤖 **AI 智慧規劃**：使用 Google Gemini AI 生成個人化行程
-- 🌤️ **天氣整合**：自動獲取目的地天氣資訊並調整行程建議
+- 🌤️ **天### 2. Google Maps API整合**：自動獲取目的地天氣資訊並調整行程建議
 - 🗺️ **地點資訊**：整合 Google Maps 提供景點詳細資訊和評價
 - 📱 **響應式設計**：支援桌面和行動裝置
 - 🎯 **多天行程**：支援1-4天的行程規劃
@@ -17,66 +17,142 @@
 
 > **注意**：GitHub Pages 版本僅供展示介面，無法使用完整的AI功能。如需體驗完整功能，請按照以下步驟本地部署。
 
-## 📋 本地部署指南
+## � 部署選項
 
-### 環境需求
+### 選項 1：本地運行（推薦新手）
 
-- Python 3.8+
-- Node.js (可選，用於前端開發)
-
-### 1. 下載專案
-
+#### 快速開始
 ```bash
+# 1. 下載專案
 git clone https://github.com/chenan1126/AI_website.git
 cd AI_website
-```
 
-### 2. 安裝 Python 依賴
+# 2. 安裝 Python（如果沒有）
+# 前往 https://python.org 下載並安裝 Python 3.8+
 
-```bash
-# 創建虛擬環境（推薦）
+# 3. 創建虛擬環境
 python -m venv venv
-venv\Scripts\activate  # Windows
-# 或 source venv/bin/activate  # macOS/Linux
 
-# 安裝依賴
+# 4. 啟動虛擬環境
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # macOS/Linux
+
+# 5. 安裝依賴
 pip install -r requirements.txt
+
+# 6. 設置 API 金鑰（見下方說明）
+# 創建 .env 文件並添加你的 API 金鑰
+
+# 7. 運行應用
+python backend/app.py
+
+# 8. 開啟瀏覽器訪問 http://localhost:5000
 ```
 
-### 3. 設置環境變數
-
-創建 `.env` 文件並添加以下 API 金鑰：
-
+#### API 金鑰設置
+在 `backend/` 資料夾中創建 `.env` 文件：
 ```env
 GEMINI_API_KEY=你的_Gemini_API_金鑰
 GOOGLE_MAPS_API_KEY=你的_Google_Maps_API_金鑰
 OPENWEATHERMAP_API_KEY=你的_OpenWeather_API_金鑰
 ```
 
-#### 如何獲取 API 金鑰
+### 選項 2：雲端部署（讓任何人可以訪問）
 
-1. **Google Gemini API**：
-   - 訪問 [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - 創建新的 API 金鑰
+#### 🌐 Railway 部署（推薦）
+Railway 提供免費額度和簡單部署：
 
-2. **Google Maps API**：
-   - 訪問 [Google Cloud Console](https://console.cloud.google.com/)
-   - 啟用 Maps JavaScript API 和 Places API
-   - 創建 API 金鑰
+1. **註冊 Railway**：前往 [railway.app](https://railway.app) 註冊
+2. **連接 GitHub**：在 Railway 中連接你的 GitHub 帳號
+3. **部署專案**：
+   - 點擊 "New Project"
+   - 選擇 "Deploy from GitHub repo"
+   - 選擇你的 `AI_website` 倉庫
+4. **設置環境變數**：
+   - 在 Railway 專案設定中添加環境變數
+   - 添加你的 API 金鑰
+5. **部署完成**：Railway 會自動部署並提供網址
 
-3. **OpenWeatherMap API**：
-   - 訪問 [OpenWeatherMap](https://openweathermap.org/api)
-   - 註冊帳號並獲取 API 金鑰
+#### 🚀 Render 部署
+1. 前往 [render.com](https://render.com) 註冊
+2. 連接 GitHub 倉庫
+3. 選擇 "Web Service"
+4. 設置構建命令：`pip install -r requirements.txt`
+5. 設置啟動命令：`python backend/app.py`
+6. 添加環境變數
+7. 部署
 
-### 4. 運行應用
+#### 🐙 Heroku 部署
+1. 安裝 Heroku CLI
+2. 登入 Heroku：`heroku login`
+3. 創建應用：`heroku create your-app-name`
+4. 添加環境變數：`heroku config:set GEMINI_API_KEY=你的金鑰`
+5. 部署：`git push heroku main`
 
-```bash
-# 啟動後端服務器
-python backend/app.py
+### 選項 3：Docker 部署
 
-# 開啟瀏覽器訪問
-# http://localhost:5000
+#### 使用 Docker（適合進階用戶）
+
+```dockerfile
+# Dockerfile 已經包含在專案中
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["python", "backend/app.py"]
 ```
+
+**使用 Docker Compose（推薦）**：
+```bash
+# 安裝 Docker 和 Docker Compose
+# 然後運行：
+docker-compose up -d
+
+# 應用將在 http://localhost:5000 上運行
+```
+
+**使用部署腳本**：
+```bash
+# 給予執行權限
+chmod +x deploy.sh
+
+# 本地部署
+./deploy.sh local
+
+# Docker 部署
+./deploy.sh docker
+
+# 查看其他選項
+./deploy.sh --help
+```
+
+## 🔑 API 金鑰獲取指南
+
+### 1. Google Gemini API
+- 訪問：[Google AI Studio](https://makersuite.google.com/app/apikey)
+- 點擊 "Create API Key"
+- 複製生成的 API 金鑰
+
+### 2. Google Maps API
+- 訪問：[Google Cloud Console](https://console.cloud.google.com/)
+- 創建新專案或選擇現有專案
+- 啟用以下 API：
+  - Maps JavaScript API
+  - Places API
+- 創建 API 金鑰
+
+### 3. OpenWeatherMap API
+- 訪問：[OpenWeatherMap](https://openweathermap.org/api)
+- 點擊 "Sign Up" 註冊
+- 驗證郵箱後登入
+- 前往 API Keys 頁面獲取金鑰
 
 ## 📖 使用說明
 
