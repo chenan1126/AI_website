@@ -2,7 +2,6 @@ from quart import Quart, request, jsonify
 from quart_cors import cors
 import json
 import os
-import sys
 import asyncio
 import google.generativeai as genai
 import logging
@@ -436,36 +435,14 @@ async def static_files(filename):
 async def index():
     """提供前端主頁面"""
     try:
-        # 獲取當前工作目錄和腳本目錄
-        current_dir = os.getcwd()
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        frontend_path = os.path.join(script_dir, '..', 'frontend', 'index.html')
-        frontend_abs_path = os.path.abspath(frontend_path)
-
-        logger.info(f"當前工作目錄: {current_dir}")
-        logger.info(f"腳本目錄: {script_dir}")
-        logger.info(f"前端文件路徑: {frontend_abs_path}")
-        logger.info(f"前端文件是否存在: {os.path.exists(frontend_abs_path)}")
-
-        if not os.path.exists(frontend_abs_path):
-            logger.error(f"前端文件不存在: {frontend_abs_path}")
-            return f"前端文件未找到: {frontend_abs_path}", 404
-
-        with open(frontend_abs_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            logger.info(f"成功載入前端文件，大小: {len(content)} 字元")
-            return content, 200, {'Content-Type': 'text/html; charset=utf-8'}
-    except FileNotFoundError as e:
-        logger.error(f"前端文件未找到: {e}")
-        return f"前端文件未找到: {frontend_abs_path}", 404
+        frontend_path = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'index.html')
+        with open(frontend_path, 'r', encoding='utf-8') as f:
+            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+    except FileNotFoundError:
+        return "前端文件未找到，請檢查 frontend/index.html 是否存在", 404
     except Exception as e:
         logger.error(f"載入前端文件時出錯: {e}")
-        return f"載入前端文件時出錯: {str(e)}", 500
-
-@app.route('/health', methods=['GET'])
-async def health_check():
-    """健康檢查端點"""
-    return {"status": "healthy", "message": "AI 旅遊規劃系統運行正常"}, 200
+        return f"載入前端文件時出錯: {e}", 500
 
 @app.route('/ask', methods=['POST'])
 async def ask():
@@ -751,49 +728,6 @@ def extract_city_name(city_name):
         return final_score
     except (ValueError, ZeroDivisionError):
         return None
-
-@app.route('/test', methods=['GET'])
-async def test():
-    """檢查後端是否運行正常"""
-    return jsonify({"status": "success", "message": "後端服務器正常運行"})
-
-@app.route('/place', methods=['GET'])
-async def get_place():
-    """處理地點查詢請求"""
-    try:
-        query = request.args.get('query')
-        if not query:
-            return jsonify({"status": "error", "message": "請提供查詢關鍵詞"}), 400
-            
-        place_details = await get_place_details_async(query)
-        
-        if "error" in place_details:
-            return jsonify({"status": "error", "message": place_details["error"]}), 400
-            
-        return jsonify({"status": "success", "data": place_details})
-    except Exception as e:
-        logger.error(f"處理地點查詢出錯: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/route', methods=['GET'])
-async def calculate_route():
-    """處理路線計算請求"""
-    try:
-        origin = request.args.get('origin')
-        destination = request.args.get('destination')
-        
-        if not origin or not destination:
-            return jsonify({"status": "error", "message": "請提供起點和終點"}), 400
-            
-        route_info = calculate_route_distance_and_time(origin, destination)
-        
-        if "error" in route_info:
-            return jsonify({"status": "error", "message": route_info["error"]}), 400
-            
-        return jsonify({"status": "success", "data": route_info})
-    except Exception as e:
-        logger.error(f"計算路線出錯: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
 
 async def get_place_details_async(query):
     """使用 Google Maps API 獲取地點詳細資訊"""
@@ -1319,18 +1253,5 @@ async def add_place_details_for_single_itinerary(itinerary, city_name=None):
         return itinerary  # 如果處理失敗，返回原始行程
 
 if __name__ == '__main__':
-    # 獲取 Railway 或其他平台指定的埠號
-    port = int(os.getenv('PORT', 5000))  # 如果沒有 PORT 環境變數，預設使用 5000
-
-    logger.info(f"=== Railway 部署診斷信息 ===")
-    logger.info(f"當前工作目錄: {os.getcwd()}")
-    logger.info(f"Python 路徑: {sys.executable}")
-    logger.info(f"啟動後端服務器，監聽埠號: {port}")
-    logger.info(f"Railway PORT 環境變數: {os.getenv('PORT', '未設定')}")
-    logger.info(f"Gemini API Key 設定: {'是' if os.getenv('GEMINI_API_KEY') else '否'}")
-    logger.info(f"Google Maps API Key 設定: {'是' if os.getenv('GOOGLE_MAPS_API_KEY') else '否'}")
-    logger.info(f"OpenWeatherMap API Key 設定: {'是' if os.getenv('OPENWEATHERMAP_API_KEY') else '否'}")
-    logger.info(f"前端文件存在: {os.path.exists('frontend/index.html')}")
-    logger.info(f"=================================")
-
-    app.run(debug=True, port=port, host='0.0.0.0')
+    logger.info("啟動後端服務器...")
+    app.run(debug=True, port=5000, host='0.0.0.0')
