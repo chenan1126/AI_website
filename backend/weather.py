@@ -84,6 +84,7 @@ async def get_weather_for_date(city_name, date_str):
     try:
         # 解析日期
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        today = datetime.now().date()
 
         # 獲取預報資訊
         forecast_url = f"http://api.openweathermap.org/data/2.5/forecast?q={city_name},tw&appid={api_key}&lang=zh_tw&units=metric"
@@ -93,10 +94,18 @@ async def get_weather_for_date(city_name, date_str):
 
         # 過濾指定日期的預報
         target_forecasts = []
+        current_timestamp = datetime.now().timestamp()
+        
         for forecast in forecast_data['list']:
             forecast_date = datetime.fromtimestamp(forecast['dt']).date()
-            if forecast_date == target_date:
-                target_forecasts.append(forecast)
+            if target_date == today:
+                # 如果是今天，獲取從現在開始的未來24小時預報（可能跨越到明天）
+                if forecast['dt'] >= current_timestamp and forecast['dt'] <= current_timestamp + 24*3600:
+                    target_forecasts.append(forecast)
+            else:
+                # 如果是未來日期，獲取該日期的所有預報
+                if forecast_date == target_date:
+                    target_forecasts.append(forecast)
 
         if not target_forecasts:
             return {"error": f"找不到 {date_str} 的天氣預報資料"}

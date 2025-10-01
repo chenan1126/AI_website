@@ -92,6 +92,125 @@ def calculate_wilson_score(rating, user_ratings_total):
     except (ValueError, ZeroDivisionError):
         return None
 
+def parse_time_to_minutes(time_str):
+    """
+    將時間字串轉換為當天從00:00開始的總分鐘數
+    支持格式:
+    - "09:00" -> (540, 600)  # 假設持續1小時
+    - "09:00-12:00" -> (540, 720)  # 實際時間範圍
+    返回 (start_minutes, end_minutes) 元組
+    """
+    try:
+        if not isinstance(time_str, str):
+            return (0, 60)  # 默認值
+
+        time_str = time_str.strip()
+
+        # 檢查是否包含時間範圍 (如 "09:00-12:00")
+        if "-" in time_str:
+            start_str, end_str = time_str.split("-", 1)
+            start_str = start_str.strip()
+            end_str = end_str.strip()
+
+            # 解析開始時間
+            if ":" in start_str:
+                start_hours, start_minutes = map(int, start_str.split(":"))
+                start_total = start_hours * 60 + start_minutes
+            else:
+                start_total = 0
+
+            # 解析結束時間
+            if ":" in end_str:
+                end_hours, end_minutes = map(int, end_str.split(":"))
+                end_total = end_hours * 60 + end_minutes
+            else:
+                end_total = start_total + 60  # 默認持續1小時
+
+            return (start_total, end_total)
+
+        # 單一時間點，假設持續1小時
+        elif ":" in time_str:
+            hours, minutes = map(int, time_str.split(":"))
+            start_total = hours * 60 + minutes
+            end_total = start_total + 60  # 假設持續1小時
+            return (start_total, end_total)
+
+        return (0, 60)  # 默認值
+
+    except (ValueError, TypeError):
+        return (0, 60)  # 錯誤時返回默認值
+
+def calculate_playing_time(sections):
+    """
+    計算一天的遊玩時間（從第一個行程開始到最後一個行程結束的總時間）
+    支持時間範圍格式，如 "09:00-12:00"
+    返回分鐘數
+    """
+    if not sections or not isinstance(sections, list):
+        return 0
+
+    # 按天分組
+    sections_by_day = {}
+    for section in sections:
+        if isinstance(section, dict):
+            day = section.get("day", 1)
+            if day not in sections_by_day:
+                sections_by_day[day] = []
+            sections_by_day[day].append(section)
+
+    total_playing_time = 0
+
+    for day, day_sections in sections_by_day.items():
+        if not day_sections:
+            continue
+
+        # 找到當天最早的開始時間和最晚的結束時間
+        start_times = []
+        end_times = []
+
+        for section in day_sections:
+            time_str = section.get("time", "")
+            if time_str:
+                start_minutes, end_minutes = parse_time_to_minutes(time_str)
+                start_times.append(start_minutes)
+                end_times.append(end_minutes)
+
+        if start_times and end_times:
+            day_start = min(start_times)
+            day_end = max(end_times)
+            day_playing_time = max(0, day_end - day_start)  # 確保不為負數
+            total_playing_time += day_playing_time
+
+    return total_playing_time
+
+def calculate_travel_penalty_factor(travel_duration_minutes, playing_time_minutes, threshold=0.25):
+    """
+    計算交通時間懲罰因子
+    參數:
+    - travel_duration_minutes: 交通時間總分鐘數
+    - playing_time_minutes: 遊玩時間總分鐘數
+    - threshold: 可忍受的交通時間占比 (默認25%)
+
+    返回: 懲罰因子 (0.0-1.0)，用於乘以原始評分
+    """
+    if playing_time_minutes <= 0:
+        return 1.0  # 如果沒有遊玩時間，不進行懲罰
+
+    # 計算交通時間占比
+    travel_ratio = travel_duration_minutes / playing_time_minutes
+
+    # 如果交通時間占比沒有超過閾值，返回1.0（無懲罰）
+    if travel_ratio <= threshold:
+        return 1.0
+
+    # 計算懲罰因子: M = 1 - ((travel_ratio - threshold) / (1 - threshold))
+    # 這樣當travel_ratio = threshold時，M = 1.0
+    # 當travel_ratio = 1.0時，M = 0.0（完全扣分）
+    penalty_ratio = (travel_ratio - threshold) / (1 - threshold)
+    penalty_factor = max(0.0, 1.0 - penalty_ratio)  # 確保不低於0
+
+    return penalty_factor
+
 def calculate_trip_dates(query, days):
     """根據用戶查詢和天數計算具體的旅遊日期"""
     today = datetime.now()
@@ -222,7 +341,7 @@ async def ask_gemini(question, session_id):
                 "3. 多天行程中，同一天的活動按時間順序排列\n"
                 "4. 不同天的活動通過 \"day\" 欄位區分\n"
                 "5. 地點名稱必須是具體的、可在地圖上找到的真實景點名稱\n"
-                "6. 嚴禁無意義的行程項目：\n"
+                "6. 絕對禁止使用幻想或不存在的地點名稱，所有地點必須是真實存在的\n"
                 "   - 絕對不要安排任何「交通時間」、「移動時間」、「捷運移動」、「公車移動」、「開車移動」等交通相關項目\n"
                 "   - 絕對不要安排「咖啡漫步」、「休息」、「歇息」、「小憩」等模糊活動\n"
                 "   - 絕對不要安排「加油站」、「停車場」、「廁所」、「洗手間」等非景點場所\n"
@@ -1234,7 +1353,7 @@ async def add_place_details_for_single_itinerary(itinerary, city_name=None):
         itinerary["total_duration"] = f"{int(total_duration)} 分鐘"
         itinerary["day_summaries"] = day_summaries
 
-        # 計算推薦指數（Wilson score 平均值）
+        # 計算推薦指數（Wilson score 平均值，並考慮交通時間懲罰）
         wilson_scores = []
         for section in sections:
             if isinstance(section, dict) and "wilson_score" in section and section["wilson_score"] is not None:
@@ -1242,7 +1361,29 @@ async def add_place_details_for_single_itinerary(itinerary, city_name=None):
 
         if wilson_scores:
             avg_wilson_score = sum(wilson_scores) / len(wilson_scores)
-            itinerary["recommendation_score"] = round(avg_wilson_score, 1)
+
+            # 計算遊玩時間和交通時間懲罰
+            playing_time_minutes = calculate_playing_time(sections)
+            travel_duration_minutes = total_duration  # 從之前計算的交通時間
+
+            penalty_factor = calculate_travel_penalty_factor(travel_duration_minutes, playing_time_minutes)
+
+            # 應用懲罰因子
+            final_score = avg_wilson_score * penalty_factor
+            itinerary["recommendation_score"] = round(final_score, 1)
+
+            # 計算顯示用的格式化數據
+            playing_time_hours = round(playing_time_minutes / 60, 1)
+            travel_ratio_percentage = round((travel_duration_minutes / playing_time_minutes * 100), 1) if playing_time_minutes > 0 else 0
+
+            # 添加顯示信息
+            itinerary["playing_time_display"] = f"{playing_time_hours}小時"
+            itinerary["travel_ratio_display"] = f"{travel_ratio_percentage}%"
+
+            # 添加調試信息（可選）
+            itinerary["playing_time_minutes"] = playing_time_minutes
+            itinerary["travel_duration_minutes"] = travel_duration_minutes
+            itinerary["travel_penalty_factor"] = round(penalty_factor, 2)
         else:
             itinerary["recommendation_score"] = None
 
@@ -1254,4 +1395,4 @@ async def add_place_details_for_single_itinerary(itinerary, city_name=None):
 
 if __name__ == '__main__':
     logger.info("啟動後端服務器...")
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    app.run(debug=True, port=5000, host='localhost')

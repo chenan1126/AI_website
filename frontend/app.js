@@ -4,9 +4,8 @@ localStorage.setItem('session_id', sessionId);
 // 檢查後端服務器是否在運行
 async function checkServer() {
     try {
-        const response = await fetch('http://localhost:5000/test');
-        const data = await response.json();
-        return data.status === 'success';
+        const response = await fetch('http://localhost:5000/');
+        return response.ok;
     } catch (error) {
         return false;
     }
@@ -30,6 +29,54 @@ function safeGetElement(id) {
         console.error(`元素 ID "${id}" 不存在於頁面中`);
     }
     return element;
+}
+
+// 根據天氣狀況返回對應的圖標
+function getWeatherIcon(condition) {
+    if (!condition) return 'fas fa-question-circle';
+    
+    const conditionLower = condition.toLowerCase();
+    
+    // 晴天相關
+    if (conditionLower.includes('晴') || conditionLower.includes('clear')) {
+        return 'fas fa-sun';
+    }
+    // 多雲相關
+    else if (conditionLower.includes('多雲') || conditionLower.includes('cloudy') || conditionLower.includes('陰')) {
+        return 'fas fa-cloud';
+    }
+    // 小雨相關
+    else if (conditionLower.includes('小雨') || conditionLower.includes('light rain') || conditionLower.includes('小雨')) {
+        return 'fas fa-cloud-rain';
+    }
+    // 大雨相關
+    else if (conditionLower.includes('大雨') || conditionLower.includes('heavy rain') || conditionLower.includes('暴雨')) {
+        return 'fas fa-cloud-showers-heavy';
+    }
+    // 雨相關
+    else if (conditionLower.includes('雨') || conditionLower.includes('rain')) {
+        return 'fas fa-cloud-rain';
+    }
+    // 雷雨相關
+    else if (conditionLower.includes('雷') || conditionLower.includes('thunder') || conditionLower.includes('雷雨')) {
+        return 'fas fa-bolt';
+    }
+    // 雪相關
+    else if (conditionLower.includes('雪') || conditionLower.includes('snow')) {
+        return 'fas fa-snowflake';
+    }
+    // 霧相關
+    else if (conditionLower.includes('霧') || conditionLower.includes('fog') || conditionLower.includes('mist')) {
+        return 'fas fa-smog';
+    }
+    // 風相關
+    else if (conditionLower.includes('風') || conditionLower.includes('wind')) {
+        return 'fas fa-wind';
+    }
+    // 其他狀況
+    else {
+        return 'fas fa-cloud';
+    }
 }
 
 // 格式化日期標籤的函數
@@ -271,6 +318,25 @@ function renderSingleItinerary(container, itinerary, itineraryIndex, totalItiner
         `;
     }
 
+    // 添加遊玩時間和交通時間占比信息
+    let timeInfoHTML = '';
+    if (itinerary.playing_time_display && itinerary.travel_ratio_display) {
+        timeInfoHTML = `
+            <div class="time-info" style="margin-top: 10px; display: flex; gap: 15px; flex-wrap: wrap;">
+                <div class="time-item" style="background: #e3f2fd; color: #1976d2; padding: 6px 10px; border-radius: 15px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 4px;">
+                    <i class="fas fa-clock"></i>
+                    遊玩時間: ${itinerary.playing_time_display}
+                </div>
+                <div class="time-item" style="background: #fff3e0; color: #f57c00; padding: 6px 10px; border-radius: 15px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 4px;">
+                    <i class="fas fa-route"></i>
+                    交通時間佔比: ${itinerary.travel_ratio_display}
+                </div>
+            </div>
+        `;
+    }
+
+    titleHTML += timeInfoHTML;
+
     // 添加行程摘要
     // 移除距離和時間顯示，保持介面簡潔
 
@@ -317,11 +383,11 @@ function renderSingleItinerary(container, itinerary, itineraryIndex, totalItiner
                         ☁️ ${cityName} ${dateLabel}天氣
                     </div>
                     <div style="display:flex; flex-wrap:wrap;">
-                        <div style="flex:1; min-width:120px; margin-bottom:10px;">
-                            <div style="font-size:24px; font-weight:bold; color:#1a5276;">
-                                ${weather.temperature}°C
+                        <div style="flex:1; min-width:120px; margin-bottom:10px; display:flex; align-items:center;">
+                            <div style="font-size:14px; color:#2c3e50; display:flex; flex-direction:column; align-items:center; gap:8px;">
+                                <i class="${getWeatherIcon(weather.condition)}" style="font-size:64px;"></i>
+                                <span style="text-align:center;">${weather.condition || '未知'}</span>
                             </div>
-                            <div>${weather.condition || '未知'}</div>
                         </div>
                         <div style="flex:2; display:flex; flex-wrap:wrap;">
                             <div style="flex:1; min-width:100px; background:#e8f4f8; padding:8px; margin:3px; border-radius:3px;">
@@ -365,7 +431,21 @@ function renderSingleItinerary(container, itinerary, itineraryIndex, totalItiner
         renderMultiDayItinerary(tripCard, sectionsByDate, itinerary, weatherData);
     } else {
         console.log('使用單日行程渲染');
-        // 單日行程，使用原有邏輯
+        // 單日行程，添加距離顯示
+        if (itinerary.day_summaries && itinerary.day_summaries.length > 0) {
+            const daySummary = itinerary.day_summaries[0]; // 一日遊只有第一天
+            const distanceDiv = document.createElement('div');
+            distanceDiv.className = 'day-distance';
+            distanceDiv.innerHTML = `
+                <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; display: flex; gap: 20px;">
+                    <div><i class="fas fa-road"></i> <strong>距離：</strong>${daySummary.distance}</div>
+                    <div><i class="fas fa-clock"></i> <strong>行駛時間：</strong>${daySummary.duration}</div>
+                </div>
+            `;
+            tripCard.appendChild(distanceDiv);
+        }
+        
+        // 創建時間軸
         const timeline = document.createElement('div');
         timeline.className = 'timeline';
 
@@ -642,9 +722,14 @@ function renderMultiDayItinerary(container, sectionsByDate, itinerary, weatherDa
     // 按天分組里程數據
     const daySummaries = {};
     if (itinerary.day_summaries && itinerary.day_summaries.length > 0) {
+        console.log('itinerary.day_summaries:', itinerary.day_summaries);
         itinerary.day_summaries.forEach(daySummary => {
+            console.log('處理daySummary:', daySummary);
             daySummaries[daySummary.day] = daySummary;
         });
+        console.log('最終的daySummaries:', daySummaries);
+    } else {
+        console.log('沒有day_summaries數據');
     }
 
     // 創建日期導航
@@ -684,8 +769,12 @@ function renderMultiDayItinerary(container, sectionsByDate, itinerary, weatherDa
         contentContainer.appendChild(dateTitle);
 
         // 添加該天的里程信息
+        console.log('處理日期:', currentDate, 'dayNumber:', dayNumber);
+        console.log('daySummaries:', daySummaries);
+        console.log('daySummaries[dayNumber]:', daySummaries[dayNumber]);
         const daySummary = daySummaries[dayNumber];
         if (daySummary) {
+            console.log('找到daySummary:', daySummary);
             const distanceDiv = document.createElement('div');
             distanceDiv.className = 'day-distance';
             distanceDiv.innerHTML = `
@@ -695,6 +784,8 @@ function renderMultiDayItinerary(container, sectionsByDate, itinerary, weatherDa
                 </div>
             `;
             contentContainer.appendChild(distanceDiv);
+        } else {
+            console.log('沒有找到daySummary for dayNumber:', dayNumber);
         }
 
         // 添加該天的天氣信息
@@ -715,11 +806,11 @@ function renderMultiDayItinerary(container, sectionsByDate, itinerary, weatherDa
                     ☁️ ${cityName} ${dateLabel}天氣
                 </div>
                 <div style="display:flex; flex-wrap:wrap;">
-                    <div style="flex:1; min-width:120px; margin-bottom:10px;">
-                        <div style="font-size:24px; font-weight:bold; color:#1a5276;">
-                            ${weather.temperature}°C
+                    <div style="flex:1; min-width:120px; margin-bottom:10px; display:flex; align-items:center;">
+                        <div style="font-size:14px; color:#2c3e50; display:flex; flex-direction:column; align-items:center; gap:8px;">
+                            <i class="${getWeatherIcon(weather.condition)}" style="font-size:64px;"></i>
+                            <span style="text-align:center;">${weather.condition || '未知'}</span>
                         </div>
-                        <div>${weather.condition || '未知'}</div>
                     </div>
                     <div style="flex:2; display:flex; flex-wrap:wrap;">
                         <div style="flex:1; min-width:100px; background:#e8f4f8; padding:8px; margin:3px; border-radius:3px;">
