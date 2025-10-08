@@ -913,14 +913,21 @@ async def get_place_details_async(query):
 def calculate_route_distance_and_time(origin, destination):
     """計算兩地之間的距離和行駛時間"""
     if not GOOGLE_MAPS_API_KEY:
+        logger.error("❌ 未設置 Google Maps API Key")
         return {"error": "未設置 Google Maps API Key"}
         
     # 檢查緩存
     cache_key = f"{origin}_{destination}"
     if cache_key in route_cache:
-        return route_cache[cache_key]
+        cached_result = route_cache[cache_key]
+        logger.info(f"📦 使用緩存路線: {origin} → {destination}")
+        logger.info(f"   距離: {cached_result.get('distance', 'N/A')}")
+        logger.info(f"   時間: {cached_result.get('duration', 'N/A')}")
+        return cached_result
         
     try:
+        logger.info(f"🔍 開始計算路線: {origin} → {destination}")
+        
         # Routes API
         routes_url = "https://maps.googleapis.com/maps/api/directions/json"
         routes_params = {
@@ -930,11 +937,16 @@ def calculate_route_distance_and_time(origin, destination):
             "key": GOOGLE_MAPS_API_KEY
         }
 
+        logger.info(f"📡 呼叫 Google Maps API...")
         routes_response = requests.get(routes_url, params=routes_params, timeout=REQUEST_TIMEOUT)
         routes_data = routes_response.json()
 
         if routes_data.get("status") != "OK":
-            return {"error": f"路線計算錯誤: {routes_data.get('status')}"}
+            error_msg = f"路線計算錯誤: {routes_data.get('status')}"
+            logger.error(f"❌ API 錯誤: {error_msg}")
+            if routes_data.get("error_message"):
+                logger.error(f"   詳細錯誤: {routes_data.get('error_message')}")
+            return {"error": error_msg}
 
         # 獲取距離和時間
         route = routes_data["routes"][0]["legs"][0]
@@ -943,23 +955,38 @@ def calculate_route_distance_and_time(origin, destination):
             "duration": route["duration"]["text"]
         }
         
+        logger.info(f"✅ 路線計算成功!")
+        logger.info(f"   起點: {origin}")
+        logger.info(f"   終點: {destination}")
+        logger.info(f"   距離: {route_info['distance']} ({route['distance']['value']} 公尺)")
+        logger.info(f"   時間: {route_info['duration']} ({route['duration']['value']} 秒)")
+        
         # 存入緩存
         route_cache[cache_key] = route_info
+        logger.info(f"💾 已緩存路線資料")
         return route_info
 
     except Exception as e:
-        logger.error(f"計算路線錯誤: {origin} -> {destination}, {str(e)}")
+        error_msg = f"計算路線錯誤: {origin} -> {destination}, {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        logger.error(f"   Exception 類型: {type(e).__name__}")
+        logger.error(f"   Exception 詳情: {str(e)}")
         return {"error": str(e)}
 
 def extract_numeric_value(value, units):
     """從帶有單位的字符串中提取數值"""
+    logger.debug(f"🔢 解析數值: '{value}', 單位: {units}")
     for unit in units:
         if unit in value:
             try:
                 cleaned_value = value.replace(unit, "").replace(",", "").strip()
-                return float(cleaned_value)
+                result = float(cleaned_value)
+                logger.debug(f"   ✅ 解析成功: {result} (原始: '{value}')")
+                return result
             except ValueError:
+                logger.warning(f"   ❌ 解析失敗: '{value}' -> '{cleaned_value}'")
                 return 0.0
+    logger.warning(f"   ⚠️ 未找到匹配單位: '{value}'")
     return 0.0
 
 async def process_llm_response(llm_response, city_name=None):
