@@ -664,6 +664,35 @@ function renderTimelineItem(section, index, total, timeline) {
     
     activityCard.appendChild(detailsSection);
     
+    // 添加到下一個地點的路線信息
+    if (section.route_to_next && index < total - 1) {
+        const routeInfo = document.createElement('div');
+        routeInfo.className = 'route-info';
+        routeInfo.innerHTML = `
+            <div style="margin-top: 15px; padding: 10px; background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3; border-radius: 4px;">
+                <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                    <i class="fas fa-route" style="color: #2196f3; margin-right: 8px;"></i>
+                    <strong style="color: #1565c0;">前往下一個地點</strong>
+                </div>
+                <div style="font-size: 14px; color: #424242;">
+                    <i class="fas fa-arrow-right" style="margin-right: 5px; color: #4caf50;"></i>
+                    <strong>${section.route_to_next.to}</strong>
+                </div>
+                <div style="display: flex; gap: 15px; margin-top: 8px; font-size: 13px;">
+                    <span style="display: flex; align-items: center;">
+                        <i class="fas fa-road" style="color: #ff9800; margin-right: 5px;"></i>
+                        距離: <strong style="margin-left: 3px;">${section.route_to_next.distance}</strong>
+                    </span>
+                    <span style="display: flex; align-items: center;">
+                        <i class="fas fa-clock" style="color: #9c27b0; margin-right: 5px;"></i>
+                        時間: <strong style="margin-left: 3px;">${section.route_to_next.duration}</strong>
+                    </span>
+                </div>
+            </div>
+        `;
+        activityCard.appendChild(routeInfo);
+    }
+    
     // 組裝時間軸項目
     timelineItem.appendChild(timeIndicator);
     timelineItem.appendChild(activityCard);

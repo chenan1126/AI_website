@@ -965,6 +965,8 @@ def extract_numeric_value(value, units):
 async def process_llm_response(llm_response, city_name=None):
     """處理LLM回覆，添加天氣資訊和地點詳情，不處理室內外活動調整"""
     try:
+        logger.info(f"🚀 開始處理 LLM 回應，城市: {city_name}")
+        
         # 首先檢查 llm_response 是否為預期的格式
         if not isinstance(llm_response, dict):
             logger.error(f"LLM 回應格式錯誤，預期字典但收到 {type(llm_response)}")
@@ -1118,6 +1120,11 @@ async def process_llm_response(llm_response, city_name=None):
         llm_response["total_distance"] = f"{total_distance:.1f} 公里"
         llm_response["total_duration"] = f"{int(total_duration)} 分鐘"
         llm_response["day_summaries"] = day_summaries
+        
+        logger.info(f"🏁 行程計算總結:")
+        logger.info(f"   總距離: {total_distance:.1f} 公里")
+        logger.info(f"   總時間: {int(total_duration)} 分鐘")
+        logger.info(f"   總天數: {len(day_summaries)} 天")
         
         return llm_response
 
