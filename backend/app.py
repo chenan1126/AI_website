@@ -32,6 +32,31 @@ api_key = os.getenv('GEMINI_API_KEY')
 GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
 OPENWEATHERMAP_API_KEY = os.getenv('OPENWEATHERMAP_API_KEY')
 
+# 全局日誌收集器
+web_logs = []
+
+def add_web_log(level, message):
+    """添加日誌到網頁日誌收集器"""
+    global web_logs
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    web_logs.append({
+        "timestamp": timestamp,
+        "level": level,
+        "message": message
+    })
+    # 保持最多100條日誌
+    if len(web_logs) > 100:
+        web_logs = web_logs[-100:]
+
+def clear_web_logs():
+    """清空網頁日誌"""
+    global web_logs
+    web_logs = []
+
+def get_web_logs():
+    """獲取網頁日誌"""
+    return web_logs.copy()
+
 # 設定 Gemini API Key
 if api_key:
     try:
@@ -913,20 +938,26 @@ async def get_place_details_async(query):
 def calculate_route_distance_and_time(origin, destination):
     """計算兩地之間的距離和行駛時間"""
     if not GOOGLE_MAPS_API_KEY:
-        logger.error("❌ 未設置 Google Maps API Key")
+        error_msg = "❌ 未設置 Google Maps API Key"
+        logger.error(error_msg)
+        add_web_log("error", error_msg)
         return {"error": "未設置 Google Maps API Key"}
         
     # 檢查緩存
     cache_key = f"{origin}_{destination}"
     if cache_key in route_cache:
         cached_result = route_cache[cache_key]
-        logger.info(f"📦 使用緩存路線: {origin} → {destination}")
-        logger.info(f"   距離: {cached_result.get('distance', 'N/A')}")
-        logger.info(f"   時間: {cached_result.get('duration', 'N/A')}")
+        cache_msg = f"📦 使用緩存路線: {origin} → {destination}"
+        logger.info(cache_msg)
+        add_web_log("info", cache_msg)
+        add_web_log("info", f"   距離: {cached_result.get('distance', 'N/A')}")
+        add_web_log("info", f"   時間: {cached_result.get('duration', 'N/A')}")
         return cached_result
         
     try:
-        logger.info(f"🔍 開始計算路線: {origin} → {destination}")
+        start_msg = f"🔍 開始計算路線: {origin} → {destination}"
+        logger.info(start_msg)
+        add_web_log("info", start_msg)
         
         # Routes API
         routes_url = "https://maps.googleapis.com/maps/api/directions/json"
@@ -937,15 +968,21 @@ def calculate_route_distance_and_time(origin, destination):
             "key": GOOGLE_MAPS_API_KEY
         }
 
-        logger.info(f"📡 呼叫 Google Maps API...")
+        api_msg = "📡 呼叫 Google Maps API..."
+        logger.info(api_msg)
+        add_web_log("info", api_msg)
+        
         routes_response = requests.get(routes_url, params=routes_params, timeout=REQUEST_TIMEOUT)
         routes_data = routes_response.json()
 
         if routes_data.get("status") != "OK":
             error_msg = f"路線計算錯誤: {routes_data.get('status')}"
             logger.error(f"❌ API 錯誤: {error_msg}")
+            add_web_log("error", f"❌ API 錯誤: {error_msg}")
             if routes_data.get("error_message"):
-                logger.error(f"   詳細錯誤: {routes_data.get('error_message')}")
+                detail_msg = f"   詳細錯誤: {routes_data.get('error_message')}"
+                logger.error(detail_msg)
+                add_web_log("error", detail_msg)
             return {"error": error_msg}
 
         # 獲取距離和時間
@@ -955,15 +992,19 @@ def calculate_route_distance_and_time(origin, destination):
             "duration": route["duration"]["text"]
         }
         
-        logger.info(f"✅ 路線計算成功!")
-        logger.info(f"   起點: {origin}")
-        logger.info(f"   終點: {destination}")
-        logger.info(f"   距離: {route_info['distance']} ({route['distance']['value']} 公尺)")
-        logger.info(f"   時間: {route_info['duration']} ({route['duration']['value']} 秒)")
+        success_msg = "✅ 路線計算成功!"
+        logger.info(success_msg)
+        add_web_log("success", success_msg)
+        add_web_log("info", f"   起點: {origin}")
+        add_web_log("info", f"   終點: {destination}")
+        add_web_log("info", f"   距離: {route_info['distance']} ({route['distance']['value']} 公尺)")
+        add_web_log("info", f"   時間: {route_info['duration']} ({route['duration']['value']} 秒)")
         
         # 存入緩存
         route_cache[cache_key] = route_info
-        logger.info(f"💾 已緩存路線資料")
+        cache_save_msg = "💾 已緩存路線資料"
+        logger.info(cache_save_msg)
+        add_web_log("info", cache_save_msg)
         return route_info
 
     except Exception as e:
@@ -971,28 +1012,45 @@ def calculate_route_distance_and_time(origin, destination):
         logger.error(f"❌ {error_msg}")
         logger.error(f"   Exception 類型: {type(e).__name__}")
         logger.error(f"   Exception 詳情: {str(e)}")
+        add_web_log("error", f"❌ {error_msg}")
+        add_web_log("error", f"   Exception 類型: {type(e).__name__}")
+        add_web_log("error", f"   Exception 詳情: {str(e)}")
         return {"error": str(e)}
 
 def extract_numeric_value(value, units):
     """從帶有單位的字符串中提取數值"""
-    logger.debug(f"🔢 解析數值: '{value}', 單位: {units}")
+    parse_msg = f"🔢 解析數值: '{value}', 單位: {units}"
+    logger.debug(parse_msg)
+    add_web_log("debug", parse_msg)
+    
     for unit in units:
         if unit in value:
             try:
                 cleaned_value = value.replace(unit, "").replace(",", "").strip()
                 result = float(cleaned_value)
-                logger.debug(f"   ✅ 解析成功: {result} (原始: '{value}')")
+                success_msg = f"   ✅ 解析成功: {result} (原始: '{value}')"
+                logger.debug(success_msg)
+                add_web_log("debug", success_msg)
                 return result
             except ValueError:
-                logger.warning(f"   ❌ 解析失敗: '{value}' -> '{cleaned_value}'")
+                fail_msg = f"   ❌ 解析失敗: '{value}' -> '{cleaned_value}'"
+                logger.warning(fail_msg)
+                add_web_log("warning", fail_msg)
                 return 0.0
-    logger.warning(f"   ⚠️ 未找到匹配單位: '{value}'")
+    no_unit_msg = f"   ⚠️ 未找到匹配單位: '{value}'"
+    logger.warning(no_unit_msg)
+    add_web_log("warning", no_unit_msg)
     return 0.0
 
 async def process_llm_response(llm_response, city_name=None):
     """處理LLM回覆，添加天氣資訊和地點詳情，不處理室內外活動調整"""
     try:
-        logger.info(f"🚀 開始處理 LLM 回應，城市: {city_name}")
+        # 清空之前的網頁日誌
+        clear_web_logs()
+        
+        start_msg = f"🚀 開始處理 LLM 回應，城市: {city_name}"
+        logger.info(start_msg)
+        add_web_log("info", start_msg)
         
         # 首先檢查 llm_response 是否為預期的格式
         if not isinstance(llm_response, dict):
@@ -1148,10 +1206,24 @@ async def process_llm_response(llm_response, city_name=None):
         llm_response["total_duration"] = f"{int(total_duration)} 分鐘"
         llm_response["day_summaries"] = day_summaries
         
-        logger.info(f"🏁 行程計算總結:")
-        logger.info(f"   總距離: {total_distance:.1f} 公里")
-        logger.info(f"   總時間: {int(total_duration)} 分鐘")
-        logger.info(f"   總天數: {len(day_summaries)} 天")
+        summary_msg = "🏁 行程計算總結:"
+        logger.info(summary_msg)
+        add_web_log("info", summary_msg)
+        
+        distance_msg = f"   總距離: {total_distance:.1f} 公里"
+        logger.info(distance_msg)
+        add_web_log("info", distance_msg)
+        
+        duration_msg = f"   總時間: {int(total_duration)} 分鐘"
+        logger.info(duration_msg)
+        add_web_log("info", duration_msg)
+        
+        days_msg = f"   總天數: {len(day_summaries)} 天"
+        logger.info(days_msg)
+        add_web_log("info", days_msg)
+        
+        # 添加網頁日誌到回應中
+        llm_response["debug_logs"] = get_web_logs()
         
         return llm_response
 

@@ -699,6 +699,110 @@ footer {
     margin-right: 8px;
 }
 
+/* 調試日誌樣式 */
+.debug-logs {
+    margin-top: 20px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.debug-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: #e9ecef;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.debug-header h3 {
+    margin: 0;
+    color: #495057;
+    font-size: 16px;
+}
+
+.debug-header h3 i {
+    color: #6c757d;
+    margin-right: 8px;
+}
+
+#toggleLogs {
+    padding: 5px 12px;
+    font-size: 12px;
+    border: 1px solid #6c757d;
+    background: #fff;
+    color: #6c757d;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#toggleLogs:hover {
+    background: #6c757d;
+    color: #fff;
+}
+
+.log-content {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 15px 20px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.log-entry {
+    display: flex;
+    margin-bottom: 8px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border-left: 4px solid transparent;
+}
+
+.log-entry.info {
+    background: #e3f2fd;
+    border-left-color: #2196f3;
+    color: #0d47a1;
+}
+
+.log-entry.success {
+    background: #e8f5e8;
+    border-left-color: #4caf50;
+    color: #1b5e20;
+}
+
+.log-entry.error {
+    background: #ffebee;
+    border-left-color: #f44336;
+    color: #b71c1c;
+}
+
+.log-entry.warning {
+    background: #fff3e0;
+    border-left-color: #ff9800;
+    color: #e65100;
+}
+
+.log-entry.debug {
+    background: #f3e5f5;
+    border-left-color: #9c27b0;
+    color: #4a148c;
+}
+
+.log-timestamp {
+    color: #6c757d;
+    margin-right: 10px;
+    min-width: 60px;
+    font-weight: bold;
+}
+
+.log-message {
+    flex: 1;
+    word-break: break-word;
+}
+
 /* 響應式設計 - 多天行程 */
 @media (max-width: 768px) {
     .day-nav-buttons {
@@ -714,5 +818,26 @@ footer {
     .day-indicator {
         order: -1;
         font-size: 14px;
+    }
+    
+    .debug-header {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+    
+    .log-content {
+        font-size: 12px;
+        padding: 10px 15px;
+    }
+    
+    .log-entry {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .log-timestamp {
+        margin-bottom: 5px;
+        margin-right: 0;
     }
 }

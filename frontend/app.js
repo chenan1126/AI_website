@@ -199,25 +199,38 @@ document.addEventListener('DOMContentLoaded', function() {
             // 隱藏載入指示器
             loadingEl.style.display = 'none';
             
-            // 合併兩個行程的數據
-            if (responseData1.status === 'success' && responseData2.status === 'success') {
-                const itinerary1 = responseData1.data.itineraries || [responseData1.data];
-                const itinerary2 = responseData2.data.itineraries || [responseData2.data];
-                
-                // 優先使用有天氣數據的響應
-                let weatherData = responseData1.data.weather_data;
-                if (!weatherData || weatherData.length === 0) {
-                    weatherData = responseData2.data.weather_data;
-                }
-                
-                const combinedData = {
-                    itineraries: [...itinerary1, ...itinerary2].slice(0, 2), // 確保最多兩個行程
-                    weather_data: weatherData
-                };
-                
-                renderAnswer(resultsDiv, combinedData);
-                
-                // 如果有警告，顯示它們
+                // 合併兩個行程的數據
+                if (responseData1.status === 'success' && responseData2.status === 'success') {
+                    const itinerary1 = responseData1.data.itineraries || [responseData1.data];
+                    const itinerary2 = responseData2.data.itineraries || [responseData2.data];
+                    
+                    // 優先使用有天氣數據的響應
+                    let weatherData = responseData1.data.weather_data;
+                    if (!weatherData || weatherData.length === 0) {
+                        weatherData = responseData2.data.weather_data;
+                    }
+                    
+                    // 合併調試日誌
+                    let debugLogs = [];
+                    if (responseData1.data.debug_logs) {
+                        debugLogs = debugLogs.concat(responseData1.data.debug_logs);
+                    }
+                    if (responseData2.data.debug_logs) {
+                        debugLogs = debugLogs.concat(responseData2.data.debug_logs);
+                    }
+                    
+                    const combinedData = {
+                        itineraries: [...itinerary1, ...itinerary2].slice(0, 2), // 確保最多兩個行程
+                        weather_data: weatherData,
+                        debug_logs: debugLogs
+                    };
+                    
+                    renderAnswer(resultsDiv, combinedData);
+                    
+                    // 顯示調試日誌
+                    if (debugLogs && debugLogs.length > 0) {
+                        displayDebugLogs(debugLogs);
+                    }                // 如果有警告，顯示它們
                 const warnings = [];
                 if (responseData1.warning) warnings.push(responseData1.warning);
                 if (responseData2.warning) warnings.push(responseData2.warning);
@@ -248,6 +261,61 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsDiv.appendChild(retryButton);
         }
     });
+}
+
+// 顯示調試日誌
+function displayDebugLogs(logs) {
+    const debugContainer = document.getElementById('debugLogs');
+    const logContent = document.getElementById('logContent');
+    const toggleButton = document.getElementById('toggleLogs');
+    
+    if (!debugContainer || !logContent || !toggleButton) {
+        console.warn('調試日誌容器元素未找到');
+        return;
+    }
+    
+    // 清空之前的日誌
+    logContent.innerHTML = '';
+    
+    // 添加日誌條目
+    logs.forEach(log => {
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry ${log.level}`;
+        
+        logEntry.innerHTML = `
+            <span class="log-timestamp">${log.timestamp}</span>
+            <span class="log-message">${escapeHtml(log.message)}</span>
+        `;
+        
+        logContent.appendChild(logEntry);
+    });
+    
+    // 顯示調試容器
+    debugContainer.style.display = 'block';
+    
+    // 設置切換按鈕
+    let isVisible = false;
+    logContent.style.display = 'none';
+    
+    toggleButton.onclick = () => {
+        isVisible = !isVisible;
+        logContent.style.display = isVisible ? 'block' : 'none';
+        toggleButton.innerHTML = isVisible 
+            ? '<i class="fas fa-eye-slash"></i> 隱藏日誌'
+            : '<i class="fas fa-eye"></i> 顯示日誌';
+    };
+}
+
+// HTML 轉義函數
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 });
 
 // 渲染加強版回答
