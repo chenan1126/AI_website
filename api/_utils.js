@@ -22,6 +22,7 @@ const CITY_MAPPING = {
  * @returns {Promise<object>} 天氣資訊物件或錯誤物件
  */
 async function getWeatherSync(cityName, date) {
+    console.log(`[Weather] 正在為城市「${cityName}」的日期「${date}」獲取天氣...`);
     try {
         const datasetId = CITY_MAPPING[cityName] || "F-D0047-063";
         const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${datasetId}?Authorization=${CWA_AUTH}&format=JSON`;
@@ -33,6 +34,7 @@ async function getWeatherSync(cityName, date) {
         const data = await response.json();
 
         if (data.success !== 'true') {
+            console.error(`[Weather] API 回應失敗:`, data);
             return { error: "獲取天氣資料失敗" };
         }
 
@@ -81,6 +83,8 @@ function getWeatherForDateFromForecast(data, dateStr) {
                     else if (['溫度', '平均溫度', '最高溫度', '最低溫度', '最高體感溫度', '最低體感溫度'].includes(element.ElementName)) value = valueObj.Temperature || valueObj.MaxTemperature || valueObj.MinTemperature || valueObj.MaxApparentTemperature || valueObj.MinApparentTemperature;
                     else if (['相對濕度', '平均相對濕度'].includes(element.ElementName)) value = valueObj.RelativeHumidity;
                     else if (['3小時降雨機率', '12小時降雨機率'].includes(element.ElementName)) value = valueObj.ProbabilityOfPrecipitation;
+                    else if (element.ElementName === '紫外線指數') value = valueObj.value;
+                    else if (element.ElementName === '天氣預報綜合描述') value = valueObj.value;
                     else value = valueObj.value;
 
                     if (value) {
@@ -118,6 +122,12 @@ function getWeatherForDateFromForecast(data, dateStr) {
         const minTemp = minTemps ? Math.round(Math.min(...minTemps)) : '無資料';
         const rainChance = rainProbs ? Math.round(rainProbs.reduce((a, b) => a + b, 0) / rainProbs.length) : '無資料';
 
+        const uviValues = aggregate(['紫外線指數']);
+        const uvi = uviValues ? Math.max(...uviValues) : '無資料';
+
+        const descriptions = dateWeatherData.filter(item => item.element === '天氣預報綜合描述').map(item => item.value);
+        const weatherDescription = descriptions.length > 0 ? descriptions[0] : '無特別天氣提醒。';
+
         let icon = '☀️';
         if (mainCondition.includes('晴')) icon = '☀️';
         else if (mainCondition.includes('雨')) icon = '🌧️';
@@ -131,6 +141,8 @@ function getWeatherForDateFromForecast(data, dateStr) {
             min_temp: minTemp,
             max_temp: maxTemp,
             rain_chance: rainChance,
+            uvi: uvi,
+            description: weatherDescription,
             icon: icon,
             date: dateStr
         };
@@ -169,7 +181,9 @@ export async function getMultiDayWeatherSync(cityName, dates) {
  * @returns {Promise<object>} 景點詳情或錯誤物件
  */
 export async function getPlaceDetailsSync(placeName, location = "台灣") {
+    console.log(`[Maps] 正在查詢景點「${placeName}」的詳細資訊...`);
     if (!GOOGLE_MAPS_API_KEY) {
+        console.error("[Maps] Google Maps API Key 未設置");
         return { error: "Google Maps API Key 未設置" };
     }
     try {
@@ -186,6 +200,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         const searchData = await searchResponse.json();
 
         if (searchData.status !== 'OK' || !searchData.candidates || searchData.candidates.length === 0) {
+            console.warn(`[Maps] 找不到景點: ${placeName}`);
             return { error: `找不到景點: ${placeName}` };
         }
         const placeId = searchData.candidates[0].place_id;
@@ -201,6 +216,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         const detailsData = await detailsResponse.json();
 
         if (detailsData.status !== 'OK') {
+            console.error(`[Maps] 獲取景點詳情失敗: ${detailsData.status}`);
             return { error: `獲取景點詳情失敗: ${detailsData.status}` };
         }
         const result = detailsData.result;
@@ -214,6 +230,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
             types: result.types || []
         };
     } catch (e) {
+        console.error(`[Maps] 獲取景點「${placeName}」詳情時發生錯誤: ${e.message}`);
         return { error: `獲取景點詳情時發生錯誤: ${e.message}` };
     }
 }
@@ -226,7 +243,9 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
  * @returns {Promise<object>} 路線資訊或錯誤物件
  */
 export async function calculateRouteDistanceAndTimeSync(origin, destination, mode = "driving") {
+    console.log(`[Maps] 正在計算從「${origin}」到「${destination}」的路線...`);
     if (!GOOGLE_MAPS_API_KEY) {
+        console.error("[Maps] Google Maps API Key 未設置");
         return { error: "Google Maps API Key 未設置" };
     }
     try {
@@ -241,6 +260,7 @@ export async function calculateRouteDistanceAndTimeSync(origin, destination, mod
         const data = await response.json();
 
         if (data.status !== 'OK' || !data.routes || data.routes.length === 0) {
+            console.warn(`[Maps] 無法計算路線: ${origin} -> ${destination}`);
             return { error: `無法計算路線: ${origin} -> ${destination}` };
         }
         const leg = data.routes[0].legs[0];
@@ -253,6 +273,7 @@ export async function calculateRouteDistanceAndTimeSync(origin, destination, mod
             mode: mode
         };
     } catch (e) {
+        console.error(`[Maps] 計算路線時發生錯誤: ${e.message}`);
         return { error: `計算路線時發生錯誤: ${e.message}` };
     }
 }

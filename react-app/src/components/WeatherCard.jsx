@@ -169,15 +169,41 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
             <div style={{
               fontSize: '18px',
               fontWeight: 'bold',
-              color: selectedDayWeather.uv_index >= 8 ? '#dc2626' : 
-                     selectedDayWeather.uv_index >= 6 ? '#f59e0b' : 
-                     selectedDayWeather.uv_index >= 3 ? '#eab308' : '#059669'
+              color: selectedDayWeather.uvi >= 8 ? '#dc2626' : 
+                     selectedDayWeather.uvi >= 6 ? '#f59e0b' : 
+                     selectedDayWeather.uvi >= 3 ? '#eab308' : '#059669'
             }}>
-              {selectedDayWeather.uv_index && selectedDayWeather.uv_index !== '無資料' ? selectedDayWeather.uv_index : '無資料'}
+              {selectedDayWeather.uvi && selectedDayWeather.uvi !== '無資料' ? selectedDayWeather.uvi : '無資料'}
             </div>
           </div>
         </div>
       </div>
+      {selectedDayWeather.description && selectedDayWeather.description !== '無特別天氣提醒。' && (
+        <div style={{
+          marginTop: '20px',
+          padding: '15px',
+          background: 'linear-gradient(135deg, #fff7e0 0%, #fff0e3 100%)',
+          borderRadius: '12px',
+      border: '1px solid #ffe0b2',
+          borderLeft: '5px solid #ff9800',
+          color: '#5d4037',
+          fontSize: '15px',
+          lineHeight: '1.6'
+        }}>
+          <h4 style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            color: '#e65100',
+            marginBottom: '8px',
+            fontWeight: '600'
+          }}>
+            <i className="fas fa-exclamation-triangle"></i>
+            天氣提醒
+          </h4>
+          {selectedDayWeather.description}
+        </div>
+      )}
     </div>
   );
 }

@@ -61,7 +61,6 @@ JSON 格式: {"location": "主要遊玩地點", "city": "台灣的縣市", "days
     }
 }
 
-
 // Helper to send SSE events
 function sendSseEvent(res, eventType, data) {
     try {
@@ -100,7 +99,11 @@ function buildPrompt(question, location, days, dates, weatherData) {
                 prompt += `- ${date}：${weather.condition || '未知'}，`;
                 prompt += `溫度 ${weather.temp || '?'}°C `;
                 prompt += `(${weather.min_temp || '?'}-${weather.max_temp || '?'})°C，`;
-                prompt += `降雨機率 ${weather.rain_chance || '?'}%\n`;
+                prompt += `降雨機率 ${weather.rain_chance || '?'}%，`;
+                prompt += `紫外線 ${weather.uvi || '未知'}\n`;
+                if (weather.description) {
+                    prompt += `天氣提醒：${weather.description}\n`;
+                }
             }
         }
         prompt += "\n";

@@ -69,6 +69,8 @@ function App() {
                 const eventType = eventMatch[1];
                 const eventData = JSON.parse(dataMatch[1]);
 
+                console.log(`[SSE Event] type: ${eventType}, data:`, eventData);
+
                 if (eventType === 'parsing' && eventData.data) {
                   location = eventData.data.location;
                   days = eventData.data.days;
