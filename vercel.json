@@ -1,25 +1,15 @@
 {
-  "version": 2,
   "buildCommand": "cd react-app && npm install && npm run build",
   "outputDirectory": "react-app/dist",
-  "builds": [
+  "rewrites": [
     {
-      "src": "api/*.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/react-app/dist/$1"
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
     }
   ],
   "functions": {
     "api/*.py": {
+      "runtime": "python3.9",
       "memory": 1024,
       "maxDuration": 60
     }
