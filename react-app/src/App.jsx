@@ -161,34 +161,26 @@ function App() {
     const sessionId = 'session-' + Date.now();
 
     try {
-      // 並行請求兩個行程（串流模式）
-      const streamPromises = [
-        handleStreamRequest(sessionId + '-1', question),
-        handleStreamRequest(sessionId + '-2', question),
-      ];
-
-      const apiResults = await Promise.all(streamPromises);
+      // 請求一個行程（串流模式）
+      const apiResult = await handleStreamRequest(sessionId, question);
       
-      console.log('API Results:', apiResults);
+      console.log('API Result:', apiResult);
       
-      // 合併兩個行程到一個結果中
-      const validResults = apiResults.filter(r => r !== null);
-      
-      if (validResults.length === 0) {
+      if (!apiResult) {
         setError('無法生成行程，請重試');
         setLoading(false);
         setStreamingStatus('');
         return;
       }
 
-      const combinedResults = {
-        itineraries: validResults,
-        weather_data: validResults[0]?.weather_data || {},
-        start_date: validResults[0]?.start_date || null,
+      const result = {
+        itineraries: [apiResult],
+        weather_data: apiResult.weather_data || {},
+        start_date: apiResult.start_date || null,
       };
 
-      console.log('Combined Results:', combinedResults);
-      setResults(combinedResults);
+      console.log('Result:', result);
+      setResults(result);
       setStreamingStatus('');
     } catch (err) {
       console.error('請求失敗:', err);

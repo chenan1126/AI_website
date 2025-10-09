@@ -11,7 +11,16 @@ import re
 from datetime import datetime, timedelta
 import time
 
-# 添加 api 目錄到 Python 路徑
+# 添加 api 目錄            model = genai.GenerativeModel(
+                model_name="gemini-1.5-flash",
+                generation_config={
+                    "temperature": 0.7,
+                    "top_p": 0.95,
+                    "top_k": 40,
+                    "max_output_tokens": 8192,  # 減少 token 限制以加快速度
+                },
+                safety_settings=safety_settings
+            )徑
 sys.path.insert(0, os.path.dirname(__file__))
 
 import google.generativeai as genai
@@ -268,12 +277,12 @@ class handler(BaseHTTPRequestHandler):
             self.send_sse_event('generation', {'status': 'connecting_to_gemini'})
             
             model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
+                model_name="gemini-2.5-flash",
                 generation_config={
                     "temperature": 0.7,
                     "top_p": 0.95,
                     "top_k": 40,
-                    "max_output_tokens": 8192,  # 減少 token 限制以加快速度
+                    "max_output_tokens": 8192,
                 },
                 safety_settings=safety_settings
             )
@@ -388,11 +397,97 @@ class handler(BaseHTTPRequestHandler):
                             print(f"計算交通時間失敗 {current_location} -> {next_location}: {str(e)}")
 
             trip_data['sections'] = sections_with_maps
+            
+            # 計算旅行統計數據
+            self.calculate_trip_statistics(trip_data)
+            
             return trip_data
             
         except Exception as e:
             print(f"Enrich maps data 時發生錯誤: {str(e)}")
             return trip_data
+    
+    def calculate_trip_statistics(self, trip_data):
+        """計算旅行統計數據"""
+        try:
+            if not trip_data.get('sections'):
+                return
+            
+            total_travel_minutes = 0
+            total_playing_minutes = 0
+            
+            for section in trip_data['sections']:
+                # 解析時間範圍
+                time_str = section.get('time', '')
+                if time_str and '-' in time_str:
+                    try:
+                        start_time_str, end_time_str = time_str.split('-')
+                        
+                        # 將時間轉換為分鐘
+                        def time_to_minutes(time_str):
+                            time_str = time_str.strip()
+                            if ':' in time_str:
+                                hours, minutes = map(int, time_str.split(':'))
+                            else:
+                                # 假設是 HHMM 格式
+                                hours = int(time_str[:2]) if len(time_str) >= 2 else 0
+                                minutes = int(time_str[2:]) if len(time_str) > 2 else 0
+                            return hours * 60 + minutes
+                        
+                        start_minutes = time_to_minutes(start_time_str)
+                        end_minutes = time_to_minutes(end_time_str)
+                        
+                        if end_minutes > start_minutes:
+                            playing_minutes = end_minutes - start_minutes
+                            total_playing_minutes += playing_minutes
+                    except:
+                        pass
+                
+                # 計算交通時間
+                if section.get('travel_info') and section['travel_info'].get('duration'):
+                    duration_str = section['travel_info']['duration']
+                    try:
+                        # 解析 "1 小時 30 分鐘" 或 "30 分鐘" 格式
+                        hours = 0
+                        minutes = 0
+                        
+                        if '小時' in duration_str:
+                            hours_part = duration_str.split('小時')[0].strip()
+                            hours = int(hours_part) if hours_part.isdigit() else 0
+                            remaining = duration_str.split('小時')[1] if '小時' in duration_str else ''
+                        else:
+                            remaining = duration_str
+                        
+                        if '分鐘' in remaining:
+                            minutes_part = remaining.split('分鐘')[0].strip()
+                            minutes = int(minutes_part) if minutes_part.isdigit() else 0
+                        
+                        travel_minutes = hours * 60 + minutes
+                        total_travel_minutes += travel_minutes
+                    except:
+                        pass
+            
+            # 計算總時間和占比
+            total_time_minutes = total_playing_minutes + total_travel_minutes
+            
+            if total_time_minutes > 0:
+                travel_ratio = (total_travel_minutes / total_time_minutes) * 100
+                
+                # 格式化顯示
+                def format_time(minutes):
+                    hours = minutes // 60
+                    mins = minutes % 60
+                    if hours > 0:
+                        return f"{hours}小時{mins}分" if mins > 0 else f"{hours}小時"
+                    else:
+                        return f"{mins}分鐘"
+                
+                trip_data['playing_time_display'] = format_time(total_playing_minutes)
+                trip_data['travel_ratio_display'] = f"{travel_ratio:.1f}%"
+                trip_data['total_travel_time_display'] = format_time(total_travel_minutes)
+            
+        except Exception as e:
+            print(f"計算旅行統計數據時發生錯誤: {str(e)}")
     
     def build_prompt(self, question, location, days, dates, weather_data):
         """構建 Gemini 提示詞"""
