@@ -235,13 +235,11 @@ class handler(BaseHTTPRequestHandler):
                     })
                     
                     # 發送最終結果
-                    result_data = {
-                        'itineraries': [trip_data],  # 將 trip_data 包裝在 itineraries 數組中
-                        'weather_data': weather_array,
-                        'start_date': trip_dates[0] if trip_dates else None,
-                        'location': location
-                    }
-                    self.send_sse_event('result', {'data': result_data})
+                    # 將天氣和位置資訊添加到 trip_data 中
+                    trip_data['weather_data'] = weather_array
+                    trip_data['start_date'] = trip_dates[0] if trip_dates else None
+                    trip_data['location'] = location
+                    self.send_sse_event('result', {'data': trip_data})
                 else:
                     raise ValueError("無法找到 JSON 內容")
                     
