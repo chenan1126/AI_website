@@ -6,12 +6,5 @@
       "source": "/api/:path*",
       "destination": "/api/:path*"
     }
-  ],
-  "functions": {
-    "api/*.py": {
-      "runtime": "python3.9",
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  }
+  ]
 }
