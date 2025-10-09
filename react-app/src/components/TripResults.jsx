@@ -177,15 +177,6 @@ function TripResults({ data }) {
         <div className="trip-title-section" style={{ marginBottom: '20px' }}>
           <h2 style={{ color: '#1e293b', marginBottom: '15px', fontWeight: '600' }}>{itinerary.title || `行程方案 ${index + 1}`}</h2>
           
-          {/* 顯示天氣卡片 */}
-          {data.weather_data && data.weather_data.length > 0 && (
-            <WeatherCard 
-              weatherData={data.weather_data} 
-              startDate={data.start_date} 
-              dayIndex={currentDayIndex} 
-            />
-          )}
-          
           {itinerary.recommendation_score && (
             <div style={{
               background: itinerary.recommendation_score >= 4.5 ? '#4caf50' : 
@@ -318,6 +309,17 @@ function TripResults({ data }) {
 
   return (
     <div className="response-wrapper">
+      {/* 顯示天氣卡片 - 只顯示一次 */}
+      {data.weather_data && data.weather_data.length > 0 && (
+        <div style={{ marginBottom: '30px' }}>
+          <WeatherCard
+            weatherData={data.weather_data}
+            startDate={data.start_date}
+            dayIndex={0}
+          />
+        </div>
+      )}
+
       <div className="itineraries-container" style={{
         display: 'grid',
         gridTemplateColumns: data.itineraries.length > 1 ? 'repeat(2, 1fr)' : '1fr',
