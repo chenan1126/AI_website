@@ -84,11 +84,12 @@ function sendSseEvent(res, eventType, data) {
 
 function parseTripDays(tripDaysStr) {
     if (!tripDaysStr) return 1;
-    const str = String(tripDaysStr);
-    if (str.includes("兩天") || str.includes("2天") || str.includes("二日") || str === "2") return 2;
-    if (str.includes("三天") || str.includes("3天") || str.includes("三日") || str === "3") return 3;
-    if (str.includes("四天") || str.includes("4天") || str.includes("四日") || str === "4") return 4;
-    if (str.includes("五天") || str.includes("5天") || str.includes("五日") || str === "5") return 5;
+    const str = String(tripDaysStr).trim();
+    if (str === "2" || str.includes("兩天") || str.includes("二日")) return 2;
+    if (str === "3" || str.includes("三天") || str.includes("三日")) return 3;
+    if (str === "4" || str.includes("四天") || str.includes("四日")) return 4;
+    if (str === "5" || str.includes("五天") || str.includes("五日")) return 5;
+    if (str === "1" || str.includes("一天") || str.includes("一日")) return 1;
     return 1; // Default
 }
 
