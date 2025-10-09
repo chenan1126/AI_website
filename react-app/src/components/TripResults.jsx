@@ -239,15 +239,6 @@ function TripResults({ data }) {
           )}
         </div>
         
-        {/* 天氣卡片 - 每個行程方案都有獨立的天氣顯示 */}
-        {data.weather_data && data.weather_data.length > 0 && (
-          <WeatherCard 
-            weatherData={data.weather_data} 
-            startDate={data.start_date}
-            dayIndex={currentDayIndex}
-          />
-        )}
-        
         {isMultiDay && (
           <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
             <button
