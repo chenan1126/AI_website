@@ -11,16 +11,7 @@ import re
 from datetime import datetime, timedelta
 import time
 
-# 添加 api 目錄            model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
-                generation_config={
-                    "temperature": 0.7,
-                    "top_p": 0.95,
-                    "top_k": 40,
-                    "max_output_tokens": 8192,  # 減少 token 限制以加快速度
-                },
-                safety_settings=safety_settings
-            )徑
+# 添加 api 目錄到 Python 路徑
 sys.path.insert(0, os.path.dirname(__file__))
 
 import google.generativeai as genai
