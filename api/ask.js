@@ -21,14 +21,14 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
  * @param {string} query - 用戶的原始查詢
  * @returns {Promise<object>} - 解析後的物件 { location, city, days }
  */
-async function parseQueryWithGemini(query) {
+async function parseQueryWithGemini(query, res) {
     if (!GEMINI_API_KEY) {
         console.error("缺少 Gemini API Key");
         return { location: "台灣", city: "台灣", days: "一日遊", error: "錯誤: 未設置 Gemini API Key" };
     }
     try {
         console.log(`開始使用 Gemini 解析用戶查詢: ${query}`);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         const prompt = `你是一個專門解析旅遊需求的 AI。請從以下句子中提取『主要遊玩地點』、『該地點所屬的台灣縣市』和『旅遊天數』。
 
@@ -55,7 +55,14 @@ JSON 格式: {"location": "地點", "city": "縣市", "days": "天數"}
             { responseMimeType: "application/json" }
         );
         const response = result.response;
-        const parsedData = JSON.parse(response.text());
+        const rawText = response.text();
+        
+        // 將原始回覆傳送到前端
+        if (res) {
+            sendSseEvent(res, 'raw_parsing_response', { raw: rawText });
+        }
+
+        const parsedData = JSON.parse(rawText);
 
         if (!parsedData.location || !parsedData.days || !parsedData.city) {
              console.error(`Gemini 解析結果缺少必要欄位: ${JSON.stringify(parsedData)}`);
@@ -283,7 +290,7 @@ export default async function handler(req, res) {
 
         // 1. 使用 Gemini 解析用戶的自然語言輸入
         sendSseEvent(res, 'parsing', { status: 'start_query_parsing' });
-        const parsedQuery = await parseQueryWithGemini(naturalLanguageQuery);
+        const parsedQuery = await parseQueryWithGemini(naturalLanguageQuery, res);
         sendSseEvent(res, 'parsing_result', { result: parsedQuery }); // <--- 新增的除錯事件
 
         if (parsedQuery.error) {
