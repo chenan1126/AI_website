@@ -283,6 +283,8 @@ export default async function handler(req, res) {
         // 1. 使用 Gemini 解析用戶的自然語言輸入
         sendSseEvent(res, 'parsing', { status: 'start_query_parsing' });
         const parsedQuery = await parseQueryWithGemini(naturalLanguageQuery);
+        sendSseEvent(res, 'parsing_result', { result: parsedQuery }); // <--- 新增的除錯事件
+
         if (parsedQuery.error) {
             console.warn(`解析用戶查詢失敗: ${parsedQuery.error}`);
         }

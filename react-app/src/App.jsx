@@ -76,6 +76,11 @@ function App() {
                   console.log(eventData.prompt);
                   console.log("-----------------");
                 }
+                else if (eventType === 'parsing_result') {
+                  console.log("--- PARSING RESULT ---");
+                  console.log(eventData.result);
+                  console.log("----------------------");
+                }
                 else if (eventType === 'parsing' && eventData.data) {
                   location = eventData.data.location;
                   days = eventData.data.days;
