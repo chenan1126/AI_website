@@ -28,7 +28,7 @@ async function parseQueryWithGemini(query) {
     }
     try {
         console.log(`開始使用 Gemini 解析用戶查詢: ${query}`);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         const prompt = `請從以下句子中提取『主要遊玩地點』、『該地點所屬的台灣縣市』和『旅遊天數』，並以 JSON 格式回傳。
 句子: "${query}"
@@ -287,7 +287,7 @@ export default async function handler(req, res) {
         // 4. Gemini Streaming
         sendSseEvent(res, 'generation', { status: 'starting' });
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-2.5-flash",
         });
 
         const result = await model.generateContentStream({
