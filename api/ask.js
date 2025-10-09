@@ -30,14 +30,25 @@ async function parseQueryWithGemini(query) {
         console.log(`開始使用 Gemini 解析用戶查詢: ${query}`);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        const prompt = `請從以下句子中提取『主要遊玩地點』、『該地點所屬的台灣縣市』和『旅遊天數』，並以 JSON 格式回傳。
+        const prompt = `你是一個專門解析旅遊需求的 AI。請從以下句子中提取『主要遊玩地點』、『該地點所屬的台灣縣市』和『旅遊天數』。
+
 句子: "${query}"
-JSON 格式: {"location": "主要遊玩地點", "city": "台灣的縣市", "days": "天數"}
-例如，如果句子是「想去阿里山看日出」，地點是「阿里山」，縣市是「嘉義縣」。
-地點必須是台灣的真實存在地點。縣市必須是台灣的一個縣或市。
-如果句子中沒有明確的旅遊天數，請根據上下文（例如「週末」通常是2天）推斷，如果無法推斷，則預設為「一日遊」。
-如果無法判斷縣市，請將縣市設為與地點相同。
-你的回應必須是可直接解析的純 JSON，不包含任何其他文字。`;
+
+你的回應必須是可直接解析的純 JSON 格式，不包含任何其他說明文字。
+JSON 格式: {"location": "地點", "city": "縣市", "days": "天數"}
+
+範例：
+- 輸入: "想去阿里山看日出"
+- 輸出: {"location": "阿里山", "city": "嘉義縣", "days": "一日遊"}
+- 輸入: "明天去高雄玩兩天"
+- 輸出: {"location": "高雄", "city": "高雄市", "days": "兩天"}
+- 輸入: "週末去台中"
+- 輸出: {"location": "台中", "city": "台中市", "days": "兩天"}
+
+規則：
+1. 'location' 必須是台灣的真實地點。
+2. 'city' 必須是 'location' 所屬的台灣縣市。如果無法判斷，請將 'city' 設為與 'location' 相同。
+3. 'days' 如果沒有明確天數，請根據上下文推斷（例如「週末」是兩天），若無法推斷則預設為「一日遊」。`;
 
         const result = await model.generateContent(
             prompt,
