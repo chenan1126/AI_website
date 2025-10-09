@@ -268,7 +268,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_sse_event('generation', {'status': 'connecting_to_gemini'})
             
             model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash-exp",
+                model_name="gemini-2.5-flash",
                 generation_config={
                     "temperature": 0.7,
                     "top_p": 0.95,
@@ -349,12 +349,12 @@ class handler(BaseHTTPRequestHandler):
             
             # 計算相鄰景點間的交通時間和距離
             sections_with_maps = []
-            previous_location = None
-            
+
+            # 先處理所有景點的 maps 資料
             for section in trip_data['sections']:
                 enriched_section = section.copy()
                 place_name = section.get('location')
-                
+
                 # 添加 Google Maps 資料
                 if place_name and place_name in places_data:
                     maps_info = places_data[place_name]
@@ -364,25 +364,29 @@ class handler(BaseHTTPRequestHandler):
                         'address': maps_info.get('address', ''),
                         'google_maps_name': maps_info.get('name', place_name)
                     }
-                
-                # 計算交通時間（除了第一個景點）
-                if previous_location and place_name:
-                    try:
-                        route_data = calculate_route_distance_and_time_sync(previous_location, place_name)
-                        if 'error' not in route_data:
-                            enriched_section['travel_info'] = {
-                                'from': previous_location,
-                                'to': place_name,
-                                'distance': route_data.get('distance_text', ''),
-                                'duration': route_data.get('duration_text', ''),
-                                'mode': route_data.get('mode', 'driving')
-                            }
-                    except Exception as e:
-                        print(f"計算交通時間失敗 {previous_location} -> {place_name}: {str(e)}")
-                
+
                 sections_with_maps.append(enriched_section)
-                previous_location = place_name
-            
+
+            # 然後為每個景點設置到下一個景點的交通資訊
+            for i, section in enumerate(sections_with_maps):
+                if i < len(sections_with_maps) - 1:  # 不是最後一個景點
+                    current_location = section.get('location')
+                    next_location = sections_with_maps[i + 1].get('location')
+
+                    if current_location and next_location:
+                        try:
+                            route_data = calculate_route_distance_and_time_sync(current_location, next_location)
+                            if 'error' not in route_data:
+                                section['travel_info'] = {
+                                    'from': current_location,
+                                    'to': next_location,
+                                    'distance': route_data.get('distance_text', ''),
+                                    'duration': route_data.get('duration_text', ''),
+                                    'mode': route_data.get('mode', 'driving')
+                                }
+                        except Exception as e:
+                            print(f"計算交通時間失敗 {current_location} -> {next_location}: {str(e)}")
+
             trip_data['sections'] = sections_with_maps
             return trip_data
             
