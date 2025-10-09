@@ -592,6 +592,10 @@ async def index():
 async def ask():
     """處理用戶問題請求"""
     try:
+        # 清空之前的調試日誌
+        clear_web_logs()
+        add_web_log("info", "開始處理新的請求")
+        
         data = await request.get_json()
         logger.info(f"收到請求數據: {data}")
         
@@ -735,7 +739,10 @@ async def ask():
                                             "weather": weather_info[date]
                                         })
                                 processed_response["weather_data"] = weather_data_list
-                                logger.info(f"創建多日期天氣數據: {len(weather_data_list)} 項")
+                                # 添加起始日期（使用第一個天氣日期）
+                                if weather_data_list:
+                                    processed_response["start_date"] = weather_data_list[0]["date"]
+                                logger.info(f"創建多日期天氣數據: {len(weather_data_list)} 項，起始日期: {weather_data_list[0]['date'] if weather_data_list else 'N/A'}")
                             elif "error" not in weather_info and "condition" in weather_info:
                                 # 單日期天氣
                                 weather_data = {
@@ -746,9 +753,12 @@ async def ask():
                                 # 如果有具體日期，添加日期信息
                                 if trip_dates:
                                     weather_data["date"] = trip_dates[0]
+                                    processed_response["start_date"] = trip_dates[0]
                                 processed_response["weather_data"] = [weather_data]
-                                logger.info("創建單日期天氣數據")
+                                logger.info(f"創建單日期天氣數據，起始日期: {trip_dates[0] if trip_dates else 'N/A'}")
 
+                    # 添加調試日誌到響應
+                    processed_response["debug_logs"] = get_web_logs()
                     response_data = {"status": "success", "data": processed_response}
 
                     logger.info("成功處理完整回應")
@@ -756,10 +766,14 @@ async def ask():
 
                 except Exception as e:
                     logger.exception(f"處理回覆時出錯: {str(e)}")
+                    # 添加調試日誌到響應
+                    llm_response["debug_logs"] = get_web_logs()
                     response_data = {"status": "success", "data": llm_response, "warning": "Google Maps 資訊不可用"}
                     return jsonify(response_data)
             else:
                 logger.warning("Google Maps API 不可用，使用降級策略")
+                # 添加調試日誌到響應
+                llm_response["debug_logs"] = get_web_logs()
                 response_data = {
                     "status": "success",
                     "data": llm_response,
@@ -768,7 +782,8 @@ async def ask():
                 return jsonify(response_data)
         except Exception as e:
             logger.exception(f"處理增強回應時出錯: {str(e)}")
-            # 降級處理：至少返回LLM回應
+            # 降級處理：至少返回LLM回應，並包含調試日誌
+            llm_response["debug_logs"] = get_web_logs()
             return jsonify({
                 "status": "success",
                 "data": llm_response,
@@ -820,17 +835,17 @@ def is_location_specific(location):
     return True
 
 def extract_city_name(city_name):
-    """從地點名稱中提取城市名，並轉換為英文"""
+    """從地點名稱中提取城市名，返回中文"""
     city_map = {
-        "台北": "Taipei", "臺北": "Taipei", "新北": "New Taipei",
-        "桃園": "Taoyuan", "台中": "Taichung", "臺中": "Taichung",
-        "台南": "Tainan", "臺南": "Tainan", "高雄": "Kaohsiung",
-        "基隆": "Keelung", "新竹": "Hsinchu", "嘉義": "Chiayi",
-        "苗栗": "Miaoli", "彰化": "Changhua", "南投": "Nantou",
-        "雲林": "Yunlin", "屏東": "Pingtung", "宜蘭": "Yilan",
-        "花蓮": "Hualien", "台東": "Taitung", "臺東": "Taitung",
-        "澎湖": "Penghu", "金門": "Kinmen", "連江": "Lienchiang",
-        "台灣": "Taipei", "臺灣": "Taipei"  # 預設使用台北
+        "台北": "台北", "臺北": "台北", "新北": "新北",
+        "桃園": "桃園", "台中": "台中", "臺中": "台中",
+        "台南": "台南", "臺南": "台南", "高雄": "高雄",
+        "基隆": "基隆", "新竹": "新竹", "嘉義": "嘉義",
+        "苗栗": "苗栗", "彰化": "彰化", "南投": "南投",
+        "雲林": "雲林", "屏東": "屏東", "宜蘭": "宜蘭",
+        "花蓮": "花蓮", "台東": "台東", "臺東": "台東",
+        "澎湖": "澎湖", "金門": "金門", "連江": "連江",
+        "台灣": "台北", "臺灣": "台北"  # 預設使用台北
     }
 
     # 直接檢查完整城市名稱
@@ -838,11 +853,11 @@ def extract_city_name(city_name):
         return city_map[city_name]
 
     # 檢查部分匹配
-    for chinese, english in city_map.items():
+    for chinese, result in city_map.items():
         if chinese in city_name:
-            return english
+            return result
 
-    return city_name
+    return "台北"  # 預設台北
     """
     計算威爾遜分數(Wilson Score)，用於綜合評分和評論數。
     返回一個0-5之間的分數，四捨五入到小數點後一位。
@@ -947,16 +962,33 @@ def calculate_route_distance_and_time(origin, destination):
     cache_key = f"{origin}_{destination}"
     if cache_key in route_cache:
         cached_result = route_cache[cache_key]
+        
+        # 從緩存中提取數值（如果有的話）
+        distance_meters = cached_result.get('distance_meters', 0)
+        duration_seconds = cached_result.get('duration_seconds', 0)
+        distance_km = distance_meters / 1000 if distance_meters > 0 else 0
+        duration_minutes = duration_seconds // 60 if duration_seconds > 0 else 0
+        duration_secs = duration_seconds % 60 if duration_seconds > 0 else 0
+        
         cache_msg = f"📦 使用緩存路線: {origin} → {destination}"
         logger.info(cache_msg)
+        logger.info(f"distance: {distance_km:.1f} km")
+        logger.info(f"time: {duration_minutes} 分 {duration_secs} 秒")
+        logger.info(f"詳細資訊: {origin} → {destination} (緩存)")
+        
         add_web_log("info", cache_msg)
-        add_web_log("info", f"   距離: {cached_result.get('distance', 'N/A')}")
-        add_web_log("info", f"   時間: {cached_result.get('duration', 'N/A')}")
+        add_web_log("info", f"   📏 里程: {cached_result.get('distance', 'N/A')}")
+        add_web_log("info", f"   ⏱️ 交通時間: {cached_result.get('duration', 'N/A')}")
+        
+        # 添加清晰的路段摘要
+        segment_summary = f"🚗 路段: {origin} → {destination} | 里程: {cached_result.get('distance', 'N/A')} | 時間: {cached_result.get('duration', 'N/A')} (緩存)"
+        add_web_log("info", segment_summary)
         return cached_result
         
     try:
         start_msg = f"🔍 開始計算路線: {origin} → {destination}"
         logger.info(start_msg)
+        logger.info(f"正在計算路段: {origin} 到 {destination}")
         add_web_log("info", start_msg)
         
         # Routes API
@@ -989,16 +1021,31 @@ def calculate_route_distance_and_time(origin, destination):
         route = routes_data["routes"][0]["legs"][0]
         route_info = {
             "distance": route["distance"]["text"],
-            "duration": route["duration"]["text"]
+            "duration": route["duration"]["text"],
+            "distance_meters": route["distance"]["value"],
+            "duration_seconds": route["duration"]["value"]
         }
+        
+        # 轉換為公里和易讀時間格式
+        distance_km = route["distance"]["value"] / 1000
+        duration_minutes = route["duration"]["value"] // 60
+        duration_seconds = route["duration"]["value"] % 60
         
         success_msg = "✅ 路線計算成功!"
         logger.info(success_msg)
+        logger.info(f"distance: {distance_km:.1f} km")
+        logger.info(f"time: {duration_minutes} 分 {duration_seconds} 秒")
+        logger.info(f"詳細資訊: {origin} → {destination}")
+        
         add_web_log("success", success_msg)
         add_web_log("info", f"   起點: {origin}")
         add_web_log("info", f"   終點: {destination}")
-        add_web_log("info", f"   距離: {route_info['distance']} ({route['distance']['value']} 公尺)")
-        add_web_log("info", f"   時間: {route_info['duration']} ({route['duration']['value']} 秒)")
+        add_web_log("info", f"   📏 里程: {route_info['distance']} ({route['distance']['value']} 公尺)")
+        add_web_log("info", f"   ⏱️ 交通時間: {route_info['duration']} ({route['duration']['value']} 秒)")
+        
+        # 添加清晰的路段摘要
+        segment_summary = f"🚗 路段: {origin} → {destination} | 里程: {route_info['distance']} | 時間: {route_info['duration']}"
+        add_web_log("info", segment_summary)
         
         # 存入緩存
         route_cache[cache_key] = route_info
@@ -1438,6 +1485,23 @@ async def add_place_details_for_single_itinerary(itinerary, city_name=None):
 
                         day_distance += distance_value
                         day_duration += duration_value
+
+                        # 為對應的段落添加路線資訊
+                        # 找到對應的段落索引（跳過住宿地點）
+                        section_index = i
+                        if day > 1 and previous_hotel and i == 0:
+                            # 如果是從住宿地點開始，跳過第一個段落
+                            continue
+                        elif day > 1 and previous_hotel:
+                            # 如果有前一天住宿，段落索引需要調整
+                            section_index = i - 1
+
+                        if section_index >= 0 and section_index < len(day_sections):
+                            day_sections[section_index]["route_to_next"] = {
+                                "to": locations[i + 1],
+                                "distance": route_info["distance"],
+                                "duration": route_info["duration"]
+                            }
 
             total_distance += day_distance
             total_duration += day_duration
