@@ -176,6 +176,16 @@ function TripResults({ data }) {
       }}>
         <div className="trip-title-section" style={{ marginBottom: '20px' }}>
           <h2 style={{ color: '#1e293b', marginBottom: '15px', fontWeight: '600' }}>{itinerary.title || `行程方案 ${index + 1}`}</h2>
+          
+          {/* 顯示天氣卡片 */}
+          {data.weather_data && data.weather_data.length > 0 && (
+            <WeatherCard 
+              weatherData={data.weather_data} 
+              startDate={data.start_date} 
+              dayIndex={currentDayIndex} 
+            />
+          )}
+          
           {itinerary.recommendation_score && (
             <div style={{
               background: itinerary.recommendation_score >= 4.5 ? '#4caf50' : 

@@ -40,64 +40,174 @@ def get_weather_sync(city_name, date=None):
         if data.get('success') != 'true':
             return {"error": "獲取天氣資料失敗"}
         
+        # 如果沒有指定日期，獲取最近的預報
         if date is None:
             return get_current_weather_from_forecast(data)
-        else:
-            return get_weather_for_date(data, date)
-    
+        
+        # 如果指定了日期，獲取該日期的天氣預報
+        return get_weather_for_date_from_forecast(data, date)
+        
     except Exception as e:
-        return {"error": f"獲取天氣資訊時發生錯誤: {str(e)}"}
+        print(f"獲取天氣資訊時發生錯誤: {str(e)}")
+        return {"error": f"獲取天氣資訊失敗: {str(e)}"}
 
 def get_current_weather_from_forecast(data):
-    """從預報數據中獲取當前天氣"""
+    """從預報數據中提取最近的天氣資訊"""
     try:
-        location = data['records']['locations'][0]['location'][0]
-        weather_elements = location['weatherElement']
+        from datetime import timezone, timedelta
         
-        weather_info = {
-            'condition': '無資料', 'temperature': '無資料', 'max_temp': '無資料',
-            'min_temp': '無資料', 'feels_like': '無資料', 'humidity': '無資料',
-            'rain_probability': '無資料', 'wind_speed': '無資料',
-            'wind_direction': '無資料', 'uv_index': '無資料', 'icon': '☀️'
-        }
+        records = data.get('records', {})
+        locations = records.get('Locations', [])
+        if not locations:
+            return {"error": "無天氣資料"}
+        
+        location_data = locations[0]  # 第一個縣市
+        regions = location_data.get('Location', [])
+        if not regions:
+            return {"error": "無地區資料"}
+        
+        region = regions[0]  # 第一個地區
+        weather_elements = region.get('WeatherElement', [])
+        
+        # 獲取最新的預報數據 (使用台灣時區 UTC+8)
+        tw_tz = timezone(timedelta(hours=8))
+        current_time = datetime.now(tw_tz)
+        
+        # 找到最近的時間段 (支援 '溫度' 或 '平均溫度')
+        recent_forecast = None
+        for element in weather_elements:
+            element_name = element.get('ElementName')
+            if element_name in ['溫度', '平均溫度']:
+                time_slots = element.get('Time', [])
+                for slot in time_slots:
+                    start_time_str = slot.get('StartTime', '')
+                    end_time_str = slot.get('EndTime', '')
+                    if start_time_str and end_time_str:
+                        start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                        end_time = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
+                        if start_time <= current_time <= end_time:
+                            recent_forecast = slot
+                            break
+                if recent_forecast:
+                    break
+        
+        if not recent_forecast:
+            # 如果沒有找到當前時間段，取第一個
+            for element in weather_elements:
+                element_name = element.get('ElementName')
+                if element_name in ['溫度', '平均溫度']:
+                    time_slots = element.get('Time', [])
+                    if time_slots:
+                        recent_forecast = time_slots[0]
+                    break
+        
+        if not recent_forecast:
+            return {"error": "無可用天氣資料"}
+        
+        # 提取天氣資訊
+        weather_info = {}
         
         for element in weather_elements:
-            element_name = element['elementName']
-            time_data = element['time'][0] if element['time'] else {}
-            element_values = time_data.get('elementValue', [])
+            element_name = element.get('ElementName')
+            time_slots = element.get('Time', [])
             
-            if not element_values:
-                continue
+            # 找到對應的 slot
+            slot = None
+            if recent_forecast:
+                for s in time_slots:
+                    if s.get('StartTime') == recent_forecast.get('StartTime'):
+                        slot = s
+                        break
             
-            value_obj = element_values[0]
+            if not slot and time_slots:
+                slot = time_slots[0]
             
-            if element_name == 'Wx':
-                value = value_obj.get('value', '')
-                weather_info['condition'] = value if value else '無資料'
-            elif element_name in ['T', 'AT']:
-                value = value_obj.get('value', '')
-                weather_info['temperature'] = round(float(value)) if value and value != '-' else '無資料'
-            elif element_name == 'MaxT':
-                value = value_obj.get('value', '')
-                weather_info['max_temp'] = round(float(value)) if value and value != '-' else '無資料'
-            elif element_name == 'MinT':
-                value = value_obj.get('value', '')
-                weather_info['min_temp'] = round(float(value)) if value and value != '-' else '無資料'
-            elif element_name in ['MaxAT', 'MinAT']:
-                value = value_obj.get('value', '')
-                if 'feels_like' not in weather_info or weather_info['feels_like'] == '無資料':
-                    weather_info['feels_like'] = round(float(value)) if value and value != '-' else '無資料'
-            elif element_name == 'RH':
-                value = value_obj.get('value', '')
-                weather_info['humidity'] = int(float(value)) if value and value != '-' else '無資料'
-            elif element_name == 'PoP6h':
-                value = value_obj.get('value', '')
-                weather_info['rain_probability'] = int(float(value)) if value and value != '-' else '無資料'
-            elif element_name == 'UVI':
-                value = value_obj.get('value', '')
-                weather_info['uv_index'] = round(float(value), 1) if value and value != '-' else '無資料'
+            if slot:
+                element_values = slot.get('ElementValue', [])
+                if element_values:
+                    value_obj = element_values[0]
+                    
+                    # 根據元素名稱提取對應的數值
+                    if element_name == '天氣現象':
+                        value = value_obj.get('Weather', '')
+                    elif element_name == '溫度':
+                        value = value_obj.get('Temperature', '')
+                    elif element_name == '平均溫度':
+                        value = value_obj.get('Temperature', '')
+                    elif element_name == '最高溫度':
+                        value = value_obj.get('MaxTemperature', '')
+                    elif element_name == '最低溫度':
+                        value = value_obj.get('MinTemperature', '')
+                    elif element_name == '最高體感溫度':
+                        value = value_obj.get('MaxApparentTemperature', '')
+                    elif element_name == '最低體感溫度':
+                        value = value_obj.get('MinApparentTemperature', '')
+                    elif element_name == '相對濕度':
+                        value = value_obj.get('RelativeHumidity', '')
+                    elif element_name == '平均相對濕度':
+                        value = value_obj.get('RelativeHumidity', '')
+                    elif element_name == '3小時降雨機率':
+                        value = value_obj.get('ProbabilityOfPrecipitation', '')
+                    elif element_name == '12小時降雨機率':
+                        value = value_obj.get('ProbabilityOfPrecipitation', '')
+                    elif element_name == '風速':
+                        value = value_obj.get('WindSpeed', '')
+                    elif element_name == '風向':
+                        value = value_obj.get('WindDirection', '')
+                    elif element_name == '紫外線指數':
+                        value = value_obj.get('UVIndex', '')
+                    elif element_name == '天氣預報綜合描述':
+                        value = value_obj.get('WeatherDescription', '')
+                    elif element_name == '最大舒適度指數':
+                        value = value_obj.get('ComfortIndexDescription', '')
+                    elif element_name == '最小舒適度指數':
+                        value = value_obj.get('ComfortIndexDescription', '')
+                    else:
+                        value = value_obj.get('value', '')  # 預設值
+                    
+                    # 設置天氣資訊
+                    if element_name == '天氣現象':
+                        weather_info['condition'] = value if value else '無資料'
+                    elif element_name == '溫度' or element_name == '平均溫度':
+                        weather_info['temperature'] = round(float(value)) if value and value != '-' else '無資料'
+                    elif element_name == '最高溫度':
+                        weather_info['max_temp'] = round(float(value)) if value and value != '-' else '無資料'
+                    elif element_name == '最低溫度':
+                        weather_info['min_temp'] = round(float(value)) if value and value != '-' else '無資料'
+                    elif element_name == '最高體感溫度' or element_name == '最低體感溫度':
+                        if 'feels_like' not in weather_info or weather_info['feels_like'] == '無資料':
+                            weather_info['feels_like'] = round(float(value)) if value and value != '-' else '無資料'
+                    elif element_name == '相對濕度' or element_name == '平均相對濕度':
+                        weather_info['humidity'] = int(float(value)) if value and value != '-' else '無資料'
+                    elif element_name == '3小時降雨機率' or element_name == '12小時降雨機率':
+                        weather_info['rain_probability'] = int(float(value)) if value and value != '-' else '無資料'
+                    elif element_name == '風速':
+                        weather_info['wind_speed'] = round(float(value), 1) if value and value != '-' else '無資料'
+                    elif element_name == '風向':
+                        weather_info['wind_direction'] = value if value else '無資料'
+                    elif element_name == '紫外線指數':
+                        weather_info['uv_index'] = round(float(value), 1) if value and value != '-' else '無資料'
+                    elif element_name == '天氣預報綜合描述':
+                        weather_info['description'] = value if value else '無資料'
+                    elif element_name == '最大舒適度指數' or element_name == '最小舒適度指數':
+                        if 'comfort' not in weather_info or weather_info['comfort'] == '無資料':
+                            weather_info['comfort'] = value if value else '無資料'
         
-        # 設置圖標
+        # 設置預設值
+        weather_info.setdefault('condition', '無資料')
+        weather_info.setdefault('temperature', '無資料')
+        weather_info.setdefault('feels_like', '無資料')
+        weather_info.setdefault('humidity', '無資料')
+        weather_info.setdefault('rain_probability', '無資料')
+        weather_info.setdefault('wind_speed', '無資料')
+        weather_info.setdefault('wind_direction', '無資料')
+        weather_info.setdefault('description', '無資料')
+        weather_info.setdefault('comfort', '無資料')
+        weather_info.setdefault('min_temp', '無資料')
+        weather_info.setdefault('max_temp', '無資料')
+        weather_info.setdefault('uv_index', '無資料')
+        
+        # 添加 icon
         condition = weather_info['condition']
         if '晴' in condition:
             weather_info['icon'] = '☀️'
@@ -107,31 +217,50 @@ def get_current_weather_from_forecast(data):
             weather_info['icon'] = '☁️'
         elif '雷' in condition:
             weather_info['icon'] = '⛈️'
+        elif '雪' in condition:
+            weather_info['icon'] = '❄️'
+        else:
+            weather_info['icon'] = '☀️'
+        
+        # 重新命名鍵以匹配前端期望
+        weather_info['temp'] = weather_info.pop('temperature')
+        weather_info['rain_chance'] = weather_info.pop('rain_probability')
         
         return weather_info
-    
+        
     except Exception as e:
         return {"error": f"解析天氣資料失敗: {str(e)}"}
 
-def get_weather_for_date(data, date_str):
-    """獲取指定日期的天氣"""
+def get_weather_for_date_from_forecast(data, date_str):
+    """從預報數據中提取指定日期的天氣資訊"""
     try:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        location = data['records']['locations'][0]['location'][0]
-        weather_elements = location['weatherElement']
         
-        temps, max_temps, min_temps, conditions, humidities, rain_probs = [], [], [], [], [], []
-        uv_indices, wind_speeds, wind_directions = [], [], []
+        records = data.get('records', {})
+        locations = records.get('Locations', [])
+        if not locations:
+            return {"error": "無天氣資料"}
+        
+        location_data = locations[0]  # 第一個縣市
+        regions = location_data.get('Location', [])
+        if not regions:
+            return {"error": "無地區資料"}
+        
+        region = regions[0]  # 第一個地區
+        weather_elements = region.get('WeatherElement', [])
+        
+        # 收集指定日期的所有時間段數據
+        date_weather_data = []
         
         for element in weather_elements:
-            element_name = element['elementName']
+            element_name = element.get('ElementName')
             time_slots = element.get('Time', [])
             
             for slot in time_slots:
                 start_time_str = slot.get('StartTime', '')
                 if not start_time_str:
                     continue
-                
+                    
                 start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
                 slot_date = start_time.date()
                 
@@ -140,36 +269,140 @@ def get_weather_for_date(data, date_str):
                     if element_values:
                         value_obj = element_values[0]
                         
-                        try:
-                            if element_name == 'Wx':
-                                conditions.append(value_obj.get('Weather', ''))
-                            elif element_name in ['T', 'AT']:
-                                temps.append(float(value_obj.get('Temperature', 0)))
-                            elif element_name == 'MaxT':
-                                max_temps.append(float(value_obj.get('MaxTemperature', 0)))
-                            elif element_name == 'MinT':
-                                min_temps.append(float(value_obj.get('MinTemperature', 0)))
-                            elif element_name == 'RH':
-                                humidities.append(float(value_obj.get('RelativeHumidity', 0)))
-                            elif element_name == 'PoP6h':
-                                rain_probs.append(float(value_obj.get('Probability', 0)))
-                            elif element_name == 'UVI':
-                                uv_indices.append(float(value_obj.get('UVIndex', 0)))
-                        except (ValueError, TypeError):
-                            continue
+                        # 根據元素名稱提取對應的數值
+                        if element_name == '天氣現象':
+                            value = value_obj.get('Weather', '')
+                        elif element_name == '溫度':
+                            value = value_obj.get('Temperature', '')
+                        elif element_name == '平均溫度':
+                            value = value_obj.get('Temperature', '')
+                        elif element_name == '最高溫度':
+                            value = value_obj.get('MaxTemperature', '')
+                        elif element_name == '最低溫度':
+                            value = value_obj.get('MinTemperature', '')
+                        elif element_name == '最高體感溫度':
+                            value = value_obj.get('MaxApparentTemperature', '')
+                        elif element_name == '最低體感溫度':
+                            value = value_obj.get('MinApparentTemperature', '')
+                        elif element_name == '相對濕度':
+                            value = value_obj.get('RelativeHumidity', '')
+                        elif element_name == '平均相對濕度':
+                            value = value_obj.get('RelativeHumidity', '')
+                        elif element_name == '3小時降雨機率':
+                            value = value_obj.get('ProbabilityOfPrecipitation', '')
+                        elif element_name == '12小時降雨機率':
+                            value = value_obj.get('ProbabilityOfPrecipitation', '')
+                        elif element_name == '風速':
+                            value = value_obj.get('WindSpeed', '')
+                        elif element_name == '風向':
+                            value = value_obj.get('WindDirection', '')
+                        elif element_name == '紫外線指數':
+                            value = value_obj.get('UVIndex', '')
+                        elif element_name == '天氣預報綜合描述':
+                            value = value_obj.get('WeatherDescription', '')
+                        elif element_name == '最大舒適度指數':
+                            value = value_obj.get('ComfortIndexDescription', '')
+                        elif element_name == '最小舒適度指數':
+                            value = value_obj.get('ComfortIndexDescription', '')
+                        else:
+                            value = value_obj.get('value', '')  # 預設值
+                        
+                        date_weather_data.append({
+                            'element': element_name,
+                            'value': value,
+                            'start_time': start_time
+                        })
         
-        if not temps and not max_temps:
-            return {"error": f"找不到 {date_str} 的天氣資料"}
+        if not date_weather_data:
+            return {"error": f"找不到 {date_str} 的天氣預報資料"}
         
-        avg_temp = round(sum(temps) / len(temps)) if temps else '無資料'
-        actual_max_temp = round(max(max_temps)) if max_temps else (round(max(temps)) if temps else '無資料')
-        actual_min_temp = round(min(min_temps)) if min_temps else (round(min(temps)) if temps else '無資料')
+        # 統計該日的數據
+        temps = []
+        conditions = []
+        humidities = []
+        rain_probs = []
+        max_temps = []
+        min_temps = []
+        feels_like_temps = []
+        descriptions = []
+        uv_indices = []
+        wind_speeds = []
+        wind_directions = []
+        comfort_indices = []
+        
+        for item in date_weather_data:
+            if item['value'] and item['value'] != '-':  # 跳過空值和 '-'
+                try:
+                    if item['element'] == '溫度' or item['element'] == '平均溫度':
+                        temps.append(float(item['value']))
+                    elif item['element'] == '天氣現象':
+                        conditions.append(item['value'])
+                    elif item['element'] == '相對濕度' or item['element'] == '平均相對濕度':
+                        humidities.append(float(item['value']))
+                    elif item['element'] == '3小時降雨機率' or item['element'] == '12小時降雨機率':
+                        rain_probs.append(float(item['value']))
+                    elif item['element'] == '最高溫度':
+                        max_temps.append(float(item['value']))
+                    elif item['element'] == '最低溫度':
+                        min_temps.append(float(item['value']))
+                    elif item['element'] == '最高體感溫度' or item['element'] == '最低體感溫度':
+                        feels_like_temps.append(float(item['value']))
+                    elif item['element'] == '天氣預報綜合描述':
+                        descriptions.append(item['value'])
+                    elif item['element'] == '紫外線指數':
+                        uv_indices.append(float(item['value']))
+                    elif item['element'] == '風速':
+                        wind_speeds.append(float(item['value']))
+                    elif item['element'] == '風向':
+                        wind_directions.append(item['value'])
+                    elif item['element'] == '最大舒適度指數' or item['element'] == '最小舒適度指數':
+                        comfort_indices.append(item['value'])
+                except ValueError:
+                    # 跳過無法轉換的數值
+                    continue
+        
+        # 計算統計值
+        if temps:
+            avg_temp = round(sum(temps) / len(temps))
+        else:
+            # 如果沒有直接的溫度數據，嘗試從綜合描述中提取
+            avg_temp = '無資料'
+            for desc in descriptions:
+                if desc and '溫度攝氏' in desc:
+                    import re
+                    temp_match = re.search(r'溫度攝氏(\d+)度', desc)
+                    if temp_match:
+                        avg_temp = int(temp_match.group(1))
+                        break
+        
+        # 使用實際的最高溫和最低溫數據
+        if max_temps:
+            actual_max_temp = round(max(max_temps))
+        else:
+            actual_max_temp = '無資料'
+            
+        if min_temps:
+            actual_min_temp = round(min(min_temps))
+        else:
+            actual_min_temp = '無資料'
+        
+        # 體感溫度取平均
+        if feels_like_temps:
+            avg_feels_like = round(sum(feels_like_temps) / len(feels_like_temps))
+        else:
+            avg_feels_like = '無資料'
+        
         main_condition = max(set(conditions), key=conditions.count) if conditions else '無資料'
         avg_humidity = int(sum(humidities) / len(humidities)) if humidities else '無資料'
         avg_rain_probability = int(sum(rain_probs) / len(rain_probs)) if rain_probs else '無資料'
+        main_description = max(set(descriptions), key=descriptions.count) if descriptions else '無資料'
         avg_uv_index = round(sum(uv_indices) / len(uv_indices), 1) if uv_indices else '無資料'
+        avg_wind_speed = round(sum(wind_speeds) / len(wind_speeds), 1) if wind_speeds else '無資料'
+        main_wind_direction = max(set(wind_directions), key=wind_directions.count) if wind_directions else '無資料'
+        main_comfort = max(set(comfort_indices), key=comfort_indices.count) if comfort_indices else '無資料'
+        avg_feels_like = round(sum(feels_like_temps) / len(feels_like_temps)) if feels_like_temps else '無資料'
         
-        icon = '☀️'
+        # 添加 icon
         if '晴' in main_condition:
             icon = '☀️'
         elif '雨' in main_condition:
@@ -178,19 +411,30 @@ def get_weather_for_date(data, date_str):
             icon = '☁️'
         elif '雷' in main_condition:
             icon = '⛈️'
+        elif '雪' in main_condition:
+            icon = '❄️'
+        else:
+            icon = '☀️'
         
         return {
             "condition": main_condition,
             "temp": avg_temp,
             "min_temp": actual_min_temp,
             "max_temp": actual_max_temp,
+            "feels_like": avg_feels_like,
             "humidity": avg_humidity,
             "rain_chance": avg_rain_probability,
+            "description": main_description,
             "uv_index": avg_uv_index,
+            "wind_speed": avg_wind_speed,
+            "wind_direction": main_wind_direction,
+            "comfort": main_comfort,
             "icon": icon,
             "date": date_str
         }
-    
+        
+    except ValueError as e:
+        return {"error": f"日期格式錯誤: {str(e)}"}
     except Exception as e:
         return {"error": f"解析天氣預報失敗: {str(e)}"}
 
@@ -224,6 +468,7 @@ def get_place_details_sync(place_name, location="台灣"):
             'inputtype': 'textquery',
             'fields': 'place_id,name,rating,user_ratings_total,formatted_address',
             'locationbias': f'region:{location}',
+            'language': 'zh-TW',
             'key': GOOGLE_MAPS_API_KEY
         }
 
@@ -245,6 +490,7 @@ def get_place_details_sync(place_name, location="台灣"):
         details_params = {
             'place_id': place_id,
             'fields': 'name,rating,user_ratings_total,formatted_address,geometry,types',
+            'language': 'zh-TW',
             'key': GOOGLE_MAPS_API_KEY
         }
 
