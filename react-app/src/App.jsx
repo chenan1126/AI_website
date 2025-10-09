@@ -69,10 +69,10 @@ function App() {
                 const eventType = eventMatch[1];
                 const eventData = JSON.parse(dataMatch[1]);
 
-                if (eventType === 'parsing') {
-                  location = eventData.location;
-                  days = eventData.days;
-                  startDate = eventData.dates[0];
+                if (eventType === 'parsing' && eventData.data) {
+                  location = eventData.data.location;
+                  days = eventData.data.days;
+                  startDate = eventData.data.dates[0];
                   setStreamingStatus(`正在規劃 ${location} ${days}天行程...`);
                 }
                 else if (eventType === 'weather') {
