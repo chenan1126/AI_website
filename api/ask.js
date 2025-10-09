@@ -293,6 +293,10 @@ export default async function handler(req, res) {
         const finalQuestion = `請幫我規劃在「${locationName}」的「${tripDays}天」行程。原始需求是：「${naturalLanguageQuery}」`;
         const prompt = buildPrompt(finalQuestion, locationName, tripDays, tripDates, weatherData);
 
+        // --- DEBUG: 將完整的 prompt 送到前端 ---
+        sendSseEvent(res, 'debug_prompt', { prompt: prompt });
+        // -----------------------------------------
+
         // 4. Gemini Streaming
         sendSseEvent(res, 'generation', { status: 'starting' });
         const model = genAI.getGenerativeModel({

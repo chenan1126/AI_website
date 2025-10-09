@@ -71,7 +71,12 @@ function App() {
 
                 console.log(`[SSE Event] type: ${eventType}, data:`, eventData);
 
-                if (eventType === 'parsing' && eventData.data) {
+                if (eventType === 'debug_prompt') {
+                  console.log("--- AI Prompt ---");
+                  console.log(eventData.prompt);
+                  console.log("-----------------");
+                }
+                else if (eventType === 'parsing' && eventData.data) {
                   location = eventData.data.location;
                   days = eventData.data.days;
                   startDate = eventData.data.dates[0];
