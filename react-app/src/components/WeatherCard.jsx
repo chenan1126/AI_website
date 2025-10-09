@@ -1,6 +1,6 @@
 import React from 'react';
 
-function WeatherCard({ weatherData, startDate, dayIndex = 0, location }) {
+function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
   if (!weatherData || weatherData.length === 0) return null;
 
   // 根據選擇的天數顯示對應的天氣
@@ -39,7 +39,7 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0, location }) {
         fontWeight: '600'
       }}>
         <i className="fas fa-sun" style={{ color: '#f59e0b' }}></i>
-        {location ? `${location} ` : ''}{dateString} 天氣
+        {dateString} 天氣
       </h3>
       <div style={{
         display: 'flex',

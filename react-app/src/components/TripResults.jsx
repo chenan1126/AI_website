@@ -4,17 +4,9 @@ import WeatherCard from './WeatherCard';
 function TripResults({ data }) {
   const [dayIndices, setDayIndices] = React.useState({});
 
-  if (!data || !data.sections) {
+  if (!data || !data.itineraries) {
     return null;
   }
-
-  // 從 data 中提取天氣和位置資訊
-  const weatherData = data.weather_data;
-  const location = data.location;
-  const startDate = data.start_date;
-
-  // 將單個 itinerary 包裝成數組格式以保持兼容性
-  const itineraries = [data];
 
   // 渲染單個景點（統一高度）
   const renderLocation = (section, index, totalSections) => {
@@ -150,7 +142,7 @@ function TripResults({ data }) {
     return groups;
   };
 
-  const renderItinerary = (itinerary, index, weatherData, location, startDate) => {
+  const renderItinerary = (itinerary, index) => {
     // 判斷是否多天行程
     const sectionsByDate = groupSectionsByDate(itinerary.sections || []);
     const days = Object.keys(sectionsByDate);
@@ -186,12 +178,11 @@ function TripResults({ data }) {
           <h2 style={{ color: '#1e293b', marginBottom: '15px', fontWeight: '600' }}>{itinerary.title || `行程方案 ${index + 1}`}</h2>
           
           {/* 顯示天氣卡片 */}
-          {weatherData && weatherData.length > 0 && (
+          {data.weather_data && data.weather_data.length > 0 && (
             <WeatherCard 
-              weatherData={weatherData} 
-              startDate={startDate} 
-              dayIndex={currentDayIndex}
-              location={location}
+              weatherData={data.weather_data} 
+              startDate={data.start_date} 
+              dayIndex={currentDayIndex} 
             />
           )}
           
@@ -338,10 +329,10 @@ function TripResults({ data }) {
     <div className="response-wrapper">
       <div className="itineraries-container" style={{
         display: 'grid',
-        gridTemplateColumns: itineraries.length > 1 ? 'repeat(2, 1fr)' : '1fr',
+        gridTemplateColumns: data.itineraries.length > 1 ? 'repeat(2, 1fr)' : '1fr',
         gap: '20px'
       }}>
-        {itineraries.map((itinerary, index) => renderItinerary(itinerary, index, weatherData, location, startDate))}
+        {data.itineraries.map((itinerary, index) => renderItinerary(itinerary, index))}
       </div>
     </div>
   );
