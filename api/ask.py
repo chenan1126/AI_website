@@ -9,6 +9,7 @@ import os
 import sys
 import re
 from datetime import datetime, timedelta
+import time
 
 # 添加 api 目錄到 Python 路徑
 sys.path.insert(0, os.path.dirname(__file__))
@@ -126,7 +127,20 @@ def parse_trip_days(query):
     return 1  # 預設 1 天
 
 class handler(BaseHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        self.start_time = None
+        super().__init__(*args, **kwargs)
+    
+    def check_timeout(self):
+        """檢查是否超時"""
+        if self.start_time and time.time() - self.start_time > 280:  # 280秒後開始警告
+            return True
+        return False
+    
     def do_POST(self):
+        import time
+        self.start_time = time.time()
+        
         try:
             # 讀取請求數據
             content_length = int(self.headers['Content-Length'])
@@ -162,6 +176,10 @@ class handler(BaseHTTPRequestHandler):
             })
             
             # 獲取天氣資訊
+            if self.check_timeout():
+                self.send_sse_event('error', {'message': '處理超時：天氣查詢階段'})
+                return
+            
             self.send_sse_event('weather', {'status': 'fetching'})
             weather_data = get_multi_day_weather_sync(location, trip_dates)
             
@@ -177,6 +195,10 @@ class handler(BaseHTTPRequestHandler):
             self.send_sse_event('weather', {'status': 'complete', 'data': weather_array})
             
             # 構建 Gemini 提示詞
+            if self.check_timeout():
+                self.send_sse_event('error', {'message': '處理超時：提示詞構建階段'})
+                return
+                
             prompt = self.build_prompt(question, location, trip_days, trip_dates, weather_data)
             
             # 使用 Gemini 串流生成並累積完整回應
@@ -195,8 +217,22 @@ class handler(BaseHTTPRequestHandler):
                     trip_data = json.loads(json_content)
                     
                     # 查詢 Google Maps 資料
+                    if self.check_timeout():
+                        self.send_sse_event('error', {'message': '處理超時：Google Maps 查詢階段'})
+                        return
+                        
                     self.send_sse_event('maps', {'status': 'fetching'})
+                    
+                    # 添加超時處理
+                    import time
+                    maps_start_time = time.time()
                     trip_data = self.enrich_with_maps_data(trip_data, location)
+                    maps_elapsed = time.time() - maps_start_time
+                    
+                    self.send_sse_event('maps', {
+                        'status': 'completed', 
+                        'elapsed_seconds': round(maps_elapsed, 1)
+                    })
                     
                     # 發送最終結果
                     self.send_sse_event('result', {'data': trip_data})
@@ -225,28 +261,61 @@ class handler(BaseHTTPRequestHandler):
     
     def stream_gemini_response_and_collect(self, prompt):
         """使用 Gemini 串流 API 生成回應並累積完整內容"""
+        import time
+        start_time = time.time()
+        
         try:
+            self.send_sse_event('generation', {'status': 'connecting_to_gemini'})
+            
             model = genai.GenerativeModel(
                 model_name="gemini-2.0-flash-exp",
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
             
+            self.send_sse_event('generation', {'status': 'sending_prompt'})
+            
             # 啟用串流模式
             response = model.generate_content(prompt, stream=True)
             
+            self.send_sse_event('generation', {'status': 'receiving_response'})
+            
             full_content = ""
+            chunk_count = 0
             
             # 逐塊發送生成的文字並累積
             for chunk in response:
+                chunk_count += 1
                 if chunk.text:
                     full_content += chunk.text
-                    self.send_sse_event('chunk', {'text': chunk.text})
+                    # 每10個chunk發送一次進度更新
+                    if chunk_count % 10 == 0:
+                        elapsed = time.time() - start_time
+                        self.send_sse_event('generation', {
+                            'status': 'generating', 
+                            'chunks': chunk_count, 
+                            'elapsed_seconds': round(elapsed, 1)
+                        })
+                        
+                        # 檢查是否超過 250 秒（留一些緩衝時間）
+                        if elapsed > 250:
+                            self.send_sse_event('error', {'message': '生成時間過長，已取消'})
+                            return full_content  # 返回已生成的內容
+            
+            elapsed = time.time() - start_time
+            self.send_sse_event('generation', {
+                'status': 'completed', 
+                'total_chunks': chunk_count, 
+                'total_seconds': round(elapsed, 1)
+            })
             
             return full_content
         
         except Exception as e:
-            self.send_sse_event('error', {'message': f"Gemini API Error: {str(e)}"})
+            elapsed = time.time() - start_time
+            self.send_sse_event('error', {
+                'message': f"Gemini API Error after {round(elapsed, 1)}s: {str(e)}"
+            })
             return ""
     
     def enrich_with_maps_data(self, trip_data, city_location):
