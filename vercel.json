@@ -2,7 +2,7 @@
   "functions": {
     "api/**/*.js": {
       "runtime": "@vercel/node",
-      "excludeFiles": ["**/*.py", "**/__pycache__/**"]
+      "excludeFiles": "**/*.py"
     }
   },
   "rewrites": [
