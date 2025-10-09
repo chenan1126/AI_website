@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import TripResults from './components/TripResults'
 
-// API URL - 從環境變量獲取，如果沒有則使用本地開發地址
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// API URL - 使用相對路徑連接到 Vercel Serverless Functions
+const API_URL = '/api';
 
 function App() {
   const [question, setQuestion] = useState('');
@@ -11,37 +11,7 @@ function App() {
   const [results, setResults] = useState(null);
   const [error, setError] = useState('');
   const [serverRunning, setServerRunning] = useState(true);
-
-  const testData = {
-    start_date: '2025-10-10',
-    weather_data: [
-      { temp: '25', condition: '晴天', icon: '☀️', max_temp: '28', min_temp: '22', rain_chance: '10%' },
-      { temp: '26', condition: '多雲', icon: '☁️', max_temp: '29', min_temp: '23', rain_chance: '20%' }
-    ],
-    itineraries: [
-      {
-        title: '台北一日遊',
-        recommendation_score: 4.5,
-        playing_time_display: '8小時',
-        travel_ratio_display: '20%',
-        sections: [
-          { location: '台北101', time: '09:00', day: 1, details: ['參觀觀景台', '拍照留念'], address: '信義區', rating: 4.5, user_ratings_total: 1234 },
-          { location: '士林夜市', time: '18:00', day: 1, details: ['品嚐小吃', '逛街購物'], address: '士林區', rating: 4.2, user_ratings_total: 5678, route_to_next: { to: '士林夜市', distance: '5公里', duration: '15分鐘' } }
-        ]
-      },
-      {
-        title: '台中二日遊',
-        recommendation_score: 4.2,
-        playing_time_display: '12小時',
-        travel_ratio_display: '15%',
-        sections: [
-          { location: '台中公園', time: '10:00', day: 1, details: ['散步', '賞花'], address: '西區', rating: 4.0, user_ratings_total: 890 },
-          { location: '逢甲夜市', time: '19:00', day: 1, details: ['購物', '吃美食'], address: '西屯區', rating: 4.3, user_ratings_total: 3456, route_to_next: { to: '逢甲夜市', distance: '3公里', duration: '10分鐘' } },
-          { location: '高美濕地', time: '09:00', day: 2, details: ['賞鳥', '生態導覽'], address: '清水區', rating: 4.6, user_ratings_total: 2345 }
-        ]
-      }
-    ]
-  };
+  const [streamingStatus, setStreamingStatus] = useState('');
 
   // 檢查後端服務器狀態
   useEffect(() => {
@@ -60,6 +30,105 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // 處理串流請求
+  const handleStreamRequest = async (sessionId, question) => {
+    return new Promise((resolve, reject) => {
+      let accumulatedText = '';
+      let weatherData = null;
+      let startDate = null;
+      let location = '';
+      let days = 1;
+
+      fetch(`${API_URL}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, question: question }),
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n\n');
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+
+              const eventMatch = line.match(/^event: (.+)$/m);
+              const dataMatch = line.match(/^data: (.+)$/m);
+
+              if (eventMatch && dataMatch) {
+                const eventType = eventMatch[1];
+                const eventData = JSON.parse(dataMatch[1]);
+
+                if (eventType === 'parsing') {
+                  location = eventData.location;
+                  days = eventData.days;
+                  startDate = eventData.dates[0];
+                  setStreamingStatus(`正在規劃 ${location} ${days}天行程...`);
+                }
+                else if (eventType === 'weather') {
+                  if (eventData.status === 'fetching') {
+                    setStreamingStatus('正在獲取天氣資訊...');
+                  } else if (eventData.data) {
+                    weatherData = eventData.data;
+                    setStreamingStatus('天氣資訊已獲取，正在生成行程...');
+                  }
+                }
+                else if (eventType === 'generation') {
+                  setStreamingStatus('AI 正在生成行程...');
+                }
+                else if (eventType === 'chunk') {
+                  accumulatedText += eventData.text;
+                  setStreamingStatus('接收中...');
+                }
+                else if (eventType === 'done') {
+                  setStreamingStatus('處理完成！');
+                  // 解析累積的文字
+                  try {
+                    // 提取 JSON 部分
+                    const jsonMatch = accumulatedText.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                      const parsedData = JSON.parse(jsonMatch[0]);
+                      resolve({
+                        ...parsedData,
+                        weather_data: weatherData,
+                        start_date: startDate,
+                        title: parsedData.title || `${location}${days}天行程`
+                      });
+                    } else {
+                      console.warn('未找到 JSON 數據，返回空結果');
+                      resolve(null);
+                    }
+                  } catch (e) {
+                    console.error('解析 JSON 失敗:', e, accumulatedText);
+                    resolve(null);
+                  }
+                }
+                else if (eventType === 'error') {
+                  console.error('串流錯誤:', eventData.message);
+                  reject(new Error(eventData.message));
+                }
+              }
+            }
+          }
+        })
+        .catch((error) => {
+          console.error('串流請求失敗:', error);
+          setStreamingStatus('');
+          reject(error);
+        });
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -71,125 +140,132 @@ function App() {
     setLoading(true);
     setError('');
     setResults(null);
+    setStreamingStatus('正在處理您的請求...');
 
     const sessionId = 'session-' + Date.now();
 
     try {
-      // 並行請求兩個行程
-      const fetchPromises = [
-        fetch(`${API_URL}/ask`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionId + '-1',
-            question: question,
-          }),
-        }).then((res) => res.json()),
-        fetch(`${API_URL}/ask`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionId + '-2',
-            question: question,
-          }),
-        }).then((res) => res.json()),
+      // 並行請求兩個行程（串流模式）
+      const streamPromises = [
+        handleStreamRequest(sessionId + '-1', question),
+        handleStreamRequest(sessionId + '-2', question),
       ];
 
-      const apiResults = await Promise.all(fetchPromises);
+      const apiResults = await Promise.all(streamPromises);
       
       console.log('API Results:', apiResults);
       
       // 合併兩個行程到一個結果中
+      const validResults = apiResults.filter(r => r !== null);
+      
+      if (validResults.length === 0) {
+        setError('無法生成行程，請重試');
+        setLoading(false);
+        setStreamingStatus('');
+        return;
+      }
+
       const combinedResults = {
-        itineraries: apiResults
-          .filter(r => r.status === 'success' && r.data)
-          .map((r, i) => {
-            // 從 r.data 中提取行程數據
-            const itinerary = r.data.itineraries?.[0] || r.data.itinerary || r.data;
-            return {
-              ...itinerary,
-              title: itinerary.title || `行程方案 ${i + 1}`,
-            };
-          }),
-        weather_data: apiResults[0]?.data?.weather_data || [],
-        start_date: apiResults[0]?.data?.start_date || null, // 添加 start_date
+        itineraries: validResults,
+        weather_data: validResults[0]?.weather_data || {},
+        start_date: validResults[0]?.start_date || null,
       };
 
       console.log('Combined Results:', combinedResults);
       setResults(combinedResults);
+      setStreamingStatus('');
     } catch (err) {
-      setError('生成行程時發生錯誤，請稍後再試。');
-      console.error('Error:', err);
+      console.error('請求失敗:', err);
+      setError(`生成行程失敗：${err.message || '請稍後再試'}`);
+      setStreamingStatus('');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClear = () => {
+    setResults(null);
+    setError('');
+    setQuestion('');
+    setStreamingStatus('');
   };
 
   return (
     <div className="container">
       <header>
         <div className="logo">
-          <i className="fas fa-route"></i>
-          <h1>AI旅遊行程規劃</h1>
+          <i className="fas fa-plane-departure"></i>
+          <h1>AI 旅遊規劃助手</h1>
         </div>
       </header>
 
       {!serverRunning && (
-        <div className="error">後端服務器未運行或無法訪問</div>
+        <div className="error">
+          <i className="fas fa-exclamation-triangle"></i>
+          <span>後端服務器未運行或無法訪問，請檢查連接。</span>
+        </div>
       )}
 
-      <div className="features-section">
-        <div className="feature-card">
-          <h2>
-            <i className="fas fa-map-marked-alt"></i> 行程規劃
-          </h2>
+      <div className="feature-card">
+        <h2>
+          <i className="fas fa-map-marked-alt"></i>
+          規劃您的旅程
+        </h2>
+        <form onSubmit={handleSubmit}>
+          <label>
+            <i className="fas fa-question-circle"></i>
+            您想去哪裡玩？
+          </label>
+          <textarea
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="例如：明天去嘉義玩兩天，想吃美食和看風景"
+            disabled={loading}
+          />
+          <div className="input-hint">
+            <i className="fas fa-lightbulb"></i>
+            <span>請描述您的旅遊需求，包括目的地、天數、興趣等</span>
+          </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="naturalQueryInput">
-                <i className="fas fa-edit"></i>
-                請描述您的旅遊需求：
-              </label>
-              <div className="input-container">
-                <textarea
-                  id="naturalQueryInput"
-                  rows="4"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  placeholder={`例如：這個週末想帶家人去阿里山看日出，大概玩三天\n\n您可以描述：\n• 目的地和景點偏好\n• 旅遊天數\n• 同行人數和特殊需求\n• 預算和交通方式`}
-                />
-                <div className="input-hint">
-                  <i className="fas fa-lightbulb"></i>
-                  <span>提示：越詳細的描述，AI 規劃的行程越精準！</span>
-                </div>
-              </div>
-            </div>
-
-            <button type="submit" className="btn-primary" disabled={loading}>
-              <i className="fas fa-magic"></i>
-              生成行程
+          <div style={{ marginTop: '24px' }}>
+            <button type="submit" className="btn-primary" disabled={loading || !serverRunning}>
+              <i className="fas fa-search"></i>
+              {loading ? '規劃中...' : '開始規劃'}
             </button>
+            {results && (
+              <button type="button" className="btn-secondary" onClick={handleClear}>
+                <i className="fas fa-redo"></i>
+                重新規劃
+              </button>
+            )}
+          </div>
+        </form>
 
-            <button type="button" className="btn-secondary" onClick={() => setResults(testData)}>
-              <i className="fas fa-eye"></i>
-              預覽模板
-            </button>
-          </form>
+        {streamingStatus && (
+          <div className="loading">
+            <div className="loading-spinner"></div>
+            <p>{streamingStatus}</p>
+          </div>
+        )}
 
-          {loading && (
-            <div className="loading">
-              <div className="loading-spinner"></div>
-              <div className="loading-text">生成中，請稍候...</div>
-            </div>
-          )}
-
-          {error && <div className="error">{error}</div>}
-
-          {results && <TripResults data={results} />}
-        </div>
+        {error && (
+          <div className="error">
+            <i className="fas fa-exclamation-circle"></i>
+            <span>{error}</span>
+          </div>
+        )}
       </div>
+
+      {loading && !streamingStatus && (
+        <div className="loading">
+          <div className="loading-spinner"></div>
+          <p>AI 正在為您規劃行程，請稍候...</p>
+        </div>
+      )}
+
+      {results && !loading && <TripResults data={results} />}
     </div>
   );
 }
 
-export default App
+export default App;
