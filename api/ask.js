@@ -34,7 +34,7 @@ async function parseQueryWithGemini(query, res) {
 
 句子: "${query}"
 
-你的回應必須是可直接解析的純 JSON 格式，不包含任何其他說明文字。
+你的回應必須是可直接解析的純 JSON 格式，不包含任何其他說明文字或 markdown 標籤。
 JSON 格式: {"location": "地點", "city": "縣市", "days": "天數"}
 
 範例：
@@ -50,16 +50,18 @@ JSON 格式: {"location": "地點", "city": "縣市", "days": "天數"}
 2. 'city' 必須是 'location' 所屬的台灣縣市。如果無法判斷，請將 'city' 設為與 'location' 相同。
 3. 'days' 如果沒有明確天數，請根據上下文推斷（例如「週末」是兩天），若無法推斷則預設為「一日遊」。`;
 
-        const result = await model.generateContent(
-            prompt,
-            { responseMimeType: "application/json" }
-        );
+        const result = await model.generateContent(prompt); // 移除 responseMimeType
         const response = result.response;
-        const rawText = response.text();
+        let rawText = response.text();
         
         // 將原始回覆傳送到前端
         if (res) {
             sendSseEvent(res, 'raw_parsing_response', { raw: rawText });
+        }
+
+        // 清理潛在的 Markdown 標籤
+        if (rawText.startsWith("```json")) {
+            rawText = rawText.substring(7, rawText.length - 3).trim();
         }
 
         const parsedData = JSON.parse(rawText);
