@@ -268,12 +268,12 @@ class handler(BaseHTTPRequestHandler):
             self.send_sse_event('generation', {'status': 'connecting_to_gemini'})
             
             model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
+                model_name="gemini-2.5-flash",
                 generation_config={
                     "temperature": 0.7,
                     "top_p": 0.95,
                     "top_k": 40,
-                    "max_output_tokens": 4096,  # 減少 token 限制以加快速度
+                    "max_output_tokens": 8192,  # 減少 token 限制以加快速度
                 },
                 safety_settings=safety_settings
             )
