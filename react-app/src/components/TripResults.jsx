@@ -182,7 +182,8 @@ function TripResults({ data }) {
             <WeatherCard 
               weatherData={data.weather_data} 
               startDate={data.start_date} 
-              dayIndex={currentDayIndex} 
+              dayIndex={currentDayIndex}
+              location={data.location}
             />
           )}
           
