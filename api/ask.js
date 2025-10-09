@@ -225,6 +225,13 @@ function calculateTripStatistics(tripData) {
 
 
 export default async function handler(req, res) {
+    // Respond to frontend health check
+    if (req.method === 'GET') {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.status(200).json({ status: 'ok', message: 'Backend is running.' });
+        return;
+    }
+
     if (req.method === 'OPTIONS') {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
