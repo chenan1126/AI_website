@@ -86,6 +86,22 @@ function App() {
                 else if (eventType === 'generation') {
                   setStreamingStatus('AI 正在生成行程...');
                 }
+                else if (eventType === 'parsing_response') {
+                  setStreamingStatus('正在解析 AI 回應...');
+                }
+                else if (eventType === 'maps') {
+                  if (eventData.status === 'fetching') {
+                    setStreamingStatus('正在查詢 Google Maps 資料...');
+                  }
+                }
+                else if (eventType === 'result') {
+                  setStreamingStatus('行程規劃完成！');
+                  resolve({
+                    ...eventData.data,
+                    weather_data: weatherData,
+                    start_date: startDate
+                  });
+                }
                 else if (eventType === 'chunk') {
                   accumulatedText += eventData.text;
                   setStreamingStatus('接收中...');

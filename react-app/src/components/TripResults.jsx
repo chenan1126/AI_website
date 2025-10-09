@@ -79,15 +79,15 @@ function TripResults({ data }) {
                   {'☆'.repeat(5 - Math.floor(section.rating))}
                 </div>
                 <span style={{ color: '#666', fontSize: '14px' }}>{section.rating}/5</span>
-                {section.user_ratings_total && (
-                  <span style={{ color: '#999', fontSize: '13px' }}>({section.user_ratings_total})</span>
+                {section.maps_data && section.maps_data.user_ratings_total && (
+                  <span style={{ color: '#999', fontSize: '13px' }}>({section.maps_data.user_ratings_total} 則評論)</span>
                 )}
               </div>
             )}
-            {section.address && (
+            {(section.address || (section.maps_data && section.maps_data.address)) && (
               <div style={{ color: '#666', fontSize: '14px', marginBottom: '15px', display: 'flex', alignItems: 'start', gap: '6px' }}>
                 <i className="fas fa-location-arrow" style={{ marginTop: '3px' }}></i>
-                <span>{section.address}</span>
+                <span>{section.maps_data && section.maps_data.address ? section.maps_data.address : section.address}</span>
               </div>
             )}
             {section.details && section.details.length > 0 && (
@@ -102,7 +102,7 @@ function TripResults({ data }) {
                 </ul>
               </div>
             )}
-            {section.route_to_next && (
+            {section.travel_info && (
               <div style={{
                 marginTop: '15px',
                 padding: '10px',
@@ -115,11 +115,11 @@ function TripResults({ data }) {
                 </div>
                 <div style={{ fontSize: '14px', color: '#424242' }}>
                   <i className="fas fa-arrow-right" style={{ marginRight: '5px', color: '#4caf50' }}></i>
-                  <strong>{section.route_to_next.to}</strong>
+                  <strong>{section.travel_info.to}</strong>
                 </div>
                 <div style={{ display: 'flex', gap: '15px', marginTop: '8px', fontSize: '13px' }}>
-                  <span><i className="fas fa-road" style={{ color: '#ff9800', marginRight: '5px' }}></i>距離: <strong>{section.route_to_next.distance}</strong></span>
-                  <span><i className="fas fa-clock" style={{ color: '#9c27b0', marginRight: '5px' }}></i>時間: <strong>{section.route_to_next.duration}</strong></span>
+                  <span><i className="fas fa-road" style={{ color: '#ff9800', marginRight: '5px' }}></i>距離: <strong>{section.travel_info.distance}</strong></span>
+                  <span><i className="fas fa-clock" style={{ color: '#9c27b0', marginRight: '5px' }}></i>時間: <strong>{section.travel_info.duration}</strong></span>
                 </div>
               </div>
             )}

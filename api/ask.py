@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(__file__))
 
 import google.generativeai as genai
-from _utils import get_weather_sync, get_multi_day_weather_sync
+from _utils import get_weather_sync, get_multi_day_weather_sync, get_place_details_sync, calculate_route_distance_and_time_sync
 
 # 配置 Gemini API
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -164,14 +164,48 @@ class handler(BaseHTTPRequestHandler):
             # 獲取天氣資訊
             self.send_sse_event('weather', {'status': 'fetching'})
             weather_data = get_multi_day_weather_sync(location, trip_dates)
-            self.send_sse_event('weather', {'status': 'complete', 'data': weather_data})
+            
+            # 將字典格式轉換為數組格式供前端使用
+            weather_array = []
+            for date in trip_dates:
+                if date in weather_data:
+                    weather_array.append({
+                        'date': date,
+                        'weather': weather_data[date]
+                    })
+            
+            self.send_sse_event('weather', {'status': 'complete', 'data': weather_array})
             
             # 構建 Gemini 提示詞
             prompt = self.build_prompt(question, location, trip_days, trip_dates, weather_data)
             
-            # 使用 Gemini 串流生成
+            # 使用 Gemini 串流生成並累積完整回應
             self.send_sse_event('generation', {'status': 'starting'})
-            self.stream_gemini_response(prompt)
+            full_response = self.stream_gemini_response_and_collect(prompt)
+            
+            # 解析 Gemini 回應
+            self.send_sse_event('parsing_response', {'status': 'parsing'})
+            try:
+                # 嘗試從回應中提取 JSON
+                json_start = full_response.find('```json')
+                json_end = full_response.find('```', json_start + 1)
+                
+                if json_start != -1 and json_end != -1:
+                    json_content = full_response[json_start + 7:json_end].strip()
+                    trip_data = json.loads(json_content)
+                    
+                    # 查詢 Google Maps 資料
+                    self.send_sse_event('maps', {'status': 'fetching'})
+                    trip_data = self.enrich_with_maps_data(trip_data, location)
+                    
+                    # 發送最終結果
+                    self.send_sse_event('result', {'data': trip_data})
+                else:
+                    raise ValueError("無法找到 JSON 內容")
+                    
+            except Exception as e:
+                self.send_sse_event('error', {'message': f"解析回應失敗: {str(e)}"})
+                return
             
             # 發送完成信號
             self.send_sse_event('done', {'status': 'complete'})
@@ -189,8 +223,8 @@ class handler(BaseHTTPRequestHandler):
         except Exception as e:
             print(f"Error sending SSE: {e}")
     
-    def stream_gemini_response(self, prompt):
-        """使用 Gemini 串流 API 生成回應"""
+    def stream_gemini_response_and_collect(self, prompt):
+        """使用 Gemini 串流 API 生成回應並累積完整內容"""
         try:
             model = genai.GenerativeModel(
                 model_name="gemini-2.0-flash-exp",
@@ -201,17 +235,90 @@ class handler(BaseHTTPRequestHandler):
             # 啟用串流模式
             response = model.generate_content(prompt, stream=True)
             
-            # 逐塊發送生成的文字
+            full_content = ""
+            
+            # 逐塊發送生成的文字並累積
             for chunk in response:
                 if chunk.text:
+                    full_content += chunk.text
                     self.send_sse_event('chunk', {'text': chunk.text})
+            
+            return full_content
         
         except Exception as e:
             self.send_sse_event('error', {'message': f"Gemini API Error: {str(e)}"})
+            return ""
+    
+    def enrich_with_maps_data(self, trip_data, city_location):
+        """使用 Google Maps 資料 enrich 行程資料"""
+        try:
+            if not trip_data.get('sections'):
+                return trip_data
+            
+            # 收集所有景點名稱
+            places = set()
+            for section in trip_data['sections']:
+                if section.get('location'):
+                    places.add(section['location'])
+            
+            # 查詢每個景點的 Google Maps 資料
+            places_data = {}
+            for place_name in places:
+                try:
+                    maps_data = get_place_details_sync(place_name, city_location)
+                    if 'error' not in maps_data:
+                        places_data[place_name] = maps_data
+                    else:
+                        print(f"Google Maps 查詢失敗: {place_name} - {maps_data['error']}")
+                except Exception as e:
+                    print(f"查詢景點 {place_name} 時發生錯誤: {str(e)}")
+            
+            # 計算相鄰景點間的交通時間和距離
+            sections_with_maps = []
+            previous_location = None
+            
+            for section in trip_data['sections']:
+                enriched_section = section.copy()
+                place_name = section.get('location')
+                
+                # 添加 Google Maps 資料
+                if place_name and place_name in places_data:
+                    maps_info = places_data[place_name]
+                    enriched_section['maps_data'] = {
+                        'rating': maps_info.get('rating', 0),
+                        'user_ratings_total': maps_info.get('user_ratings_total', 0),
+                        'address': maps_info.get('address', ''),
+                        'google_maps_name': maps_info.get('name', place_name)
+                    }
+                
+                # 計算交通時間（除了第一個景點）
+                if previous_location and place_name:
+                    try:
+                        route_data = calculate_route_distance_and_time_sync(previous_location, place_name)
+                        if 'error' not in route_data:
+                            enriched_section['travel_info'] = {
+                                'from': previous_location,
+                                'to': place_name,
+                                'distance': route_data.get('distance_text', ''),
+                                'duration': route_data.get('duration_text', ''),
+                                'mode': route_data.get('mode', 'driving')
+                            }
+                    except Exception as e:
+                        print(f"計算交通時間失敗 {previous_location} -> {place_name}: {str(e)}")
+                
+                sections_with_maps.append(enriched_section)
+                previous_location = place_name
+            
+            trip_data['sections'] = sections_with_maps
+            return trip_data
+            
+        except Exception as e:
+            print(f"Enrich maps data 時發生錯誤: {str(e)}")
+            return trip_data
     
     def build_prompt(self, question, location, days, dates, weather_data):
         """構建 Gemini 提示詞"""
-        prompt = f"""你是一位專業的旅遊規劃助手。請幫用戶規劃一個詳細的旅遊行程。
+        prompt = f"""你是一位台灣的專業旅遊行程設計師，擅長針對台灣各地設計詳細的行程規劃。
 
 用戶需求：{question}
 目的地：{location}
@@ -235,9 +342,9 @@ class handler(BaseHTTPRequestHandler):
 1. **行程標題**：吸引人的標題
 2. **每日行程**：
    - 時間：具體時間點 (例如：09:00)
-   - 地點：景點名稱
+   - 地點：景點名稱（請使用準確的景點名稱，方便後續查詢）
    - 活動：詳細描述要做什麼
-   - 地址：景點地址
+   - 地址：景點地址（如果知道的話）
    - 評分：預估評分 (1-5)
 3. **推薦指數**：整體行程評分 (1-5)
 4. **遊玩時間**：總遊玩時間
@@ -262,6 +369,63 @@ class handler(BaseHTTPRequestHandler):
   ]
 }
 ```
+
+請嚴格使用以下 JSON 格式回答：
+{
+  "title": "行程標題",
+  "sections": [
+    {
+      "time": "09:00-10:30",
+      "location": "具體的地點名稱",
+      "details": ["活動詳情1", "活動詳情2"],
+      "day": 1
+    },
+    {
+      "time": "10:30-11:00",
+      "location": "另一個具體的地點名稱",
+      "details": ["活動詳情1"],
+      "day": 1
+    },
+    {
+      "time": "09:00-10:30",
+      "location": "第二天的地點名稱",
+      "details": ["活動詳情1", "活動詳情2"],
+      "day": 2
+    },
+    {
+      "time": "10:30-11:00",
+      "location": "第二天的另一個地點",
+      "details": ["活動詳情1"],
+      "day": 2
+    }
+  ]
+}
+
+重要規則：
+1. 每個行程項目都必須包含 "day" 欄位，表示是第幾天（從1開始編號）
+2. 時間欄位只包含具體的時間範圍，如 "09:00-10:30"，不要包含天數標記
+3. 多天行程中，同一天的活動按時間順序排列
+4. 不同天的活動通過 "day" 欄位區分
+5. 地點名稱必須是具體的、可在地圖上找到的真實景點名稱
+6. 絕對禁止使用幻想或不存在的地點名稱，所有地點必須是真實存在的
+   - 絕對不要安排任何「交通時間」、「移動時間」、「捷運移動」、「公車移動」、「開車移動」等交通相關項目
+   - 絕對不要安排「咖啡漫步」、「休息」、「歇息」、「小憩」等模糊活動
+   - 絕對不要安排「加油站」、「停車場」、「廁所」、「洗手間」等非景點場所
+   - 每個行程項目必須有具體的觀光、購物、飲食或文化價值
+   - 所有行程項目必須是實際可造訪的具體景點或場所
+7. 住宿相關：推薦具體的飯店名稱，不要使用「飯店」、「旅館」等模糊名稱
+8. 飲食相關：使用具體的餐廳名稱，不要使用「餐廳」、「咖啡廳」等
+9. 如果無法找到合適的具體地點，寧可減少行程項目，也不要使用模糊名稱
+10. 行程應合理安排，考慮交通時間，確保每個活動都有實際意義
+11. 路線優化：
+    - 避免不必要的來回走動，盡量按照地理位置順序安排行程
+    - 考慮地點間的距離和交通便利性
+    - 同一區域的地點應集中安排，避免在不同區域間頻繁往返
+    - 優先選擇交通方便、距離適中的地點組合
+12. 使用繁體中文
+13. 確保多天行程的日期標記正確且連續
+
+你的回應必須是可直接解析的純 JSON，不包含任何其他文字。
 
 請開始規劃："""
         
