@@ -12,7 +12,7 @@ function TripResults({ data }) {
   const renderLocation = (section, index, totalSections) => {
     if (!section || !section.location) return null;
     return (
-      <div key={index} className="timeline-item" style={{ marginBottom: '25px' }}>
+      <div key={index} style={{ marginBottom: '25px' }}>
         <div style={{ display: 'flex', gap: '15px' }}>
           <div style={{ minWidth: '80px', textAlign: 'center' }}>
             <div style={{
@@ -115,7 +115,7 @@ function TripResults({ data }) {
                 </div>
                 <div style={{ fontSize: '14px', color: '#424242' }}>
                   <i className="fas fa-arrow-right" style={{ marginRight: '5px', color: '#4caf50' }}></i>
-                  <strong>{section.travel_info.to}</strong>
+                  <strong>{section.travel_info.from} → {section.travel_info.to}</strong>
                 </div>
                 <div style={{ display: 'flex', gap: '15px', marginTop: '8px', fontSize: '13px' }}>
                   <span><i className="fas fa-road" style={{ color: '#ff9800', marginRight: '5px' }}></i>距離: <strong>{section.travel_info.distance}</strong></span>

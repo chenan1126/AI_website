@@ -7,13 +7,6 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
   const selectedDay = weatherData[dayIndex] || weatherData[0];
   // Extract the actual weather data from the nested "weather" object
   const selectedDayWeather = selectedDay.weather || selectedDay;
-  
-  // 調試用：顯示天氣資料
-  console.log('WeatherCard - dayIndex:', dayIndex);
-  console.log('WeatherCard - weatherData:', weatherData);
-  console.log('WeatherCard - selectedDay:', selectedDay);
-  console.log('WeatherCard - selectedDayWeather:', selectedDayWeather);
-  console.log('WeatherCard - startDate 原始值:', startDate);
 
   // 生成日期標題 - 修正時區問題
   let targetDate;
@@ -21,15 +14,11 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
     // 將 "YYYY-MM-DD" 格式解析為本地時區日期
     const [year, month, day] = startDate.split('-').map(Number);
     targetDate = new Date(year, month - 1, day);
-    console.log('WeatherCard - 解析後的 targetDate:', targetDate);
-    console.log('WeatherCard - 年月日:', year, month, day);
   } else {
     targetDate = new Date();
-    console.log('WeatherCard - 沒有 startDate，使用當前日期:', targetDate);
   }
   targetDate.setDate(targetDate.getDate() + dayIndex);
   const dateString = `${targetDate.getMonth() + 1}/${targetDate.getDate()}`;
-  console.log('WeatherCard - 最終顯示日期:', dateString, '計算後的 targetDate:', targetDate);
 
   return (
     <div style={{
