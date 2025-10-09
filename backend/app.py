@@ -20,7 +20,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Quart(__name__)
-app = cors(app)  # 啟用 CORS
+# 啟用 CORS - 允許所有來源（適用於部署環境）
+app = cors(app, allow_origin="*", allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type"])
 
 # 聊天會話與緩存
 chat_sessions = {}
@@ -577,16 +578,16 @@ async def static_files(filename):
 
 @app.route('/', methods=['GET'])
 async def index():
-    """提供前端主頁面"""
-    try:
-        frontend_path = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'index.html')
-        with open(frontend_path, 'r', encoding='utf-8') as f:
-            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
-    except FileNotFoundError:
-        return "前端文件未找到，請檢查 frontend/index.html 是否存在", 404
-    except Exception as e:
-        logger.error(f"載入前端文件時出錯: {e}")
-        return f"載入前端文件時出錯: {e}", 500
+    """API 健康檢查端點"""
+    return jsonify({
+        "status": "running",
+        "message": "AI Travel Planner Backend API",
+        "version": "1.0.0",
+        "endpoints": {
+            "ask": "/ask",
+            "check_maps": "/check-maps-api"
+        }
+    }), 200
 
 @app.route('/ask', methods=['POST'])
 async def ask():
