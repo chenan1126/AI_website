@@ -1564,5 +1564,13 @@ async def add_place_details_for_single_itinerary(itinerary, city_name=None):
         return itinerary  # 如果處理失敗，返回原始行程
 
 if __name__ == '__main__':
-    logger.info("啟動後端服務器...")
-    app.run(debug=True, port=5000, host='localhost')
+    import os
+    # 支援 Render 部署：從環境變量獲取 PORT，本地開發使用 5000
+    port = int(os.environ.get('PORT', 5000))
+    # 生產環境使用 0.0.0.0，本地開發使用 localhost
+    host = '0.0.0.0' if os.environ.get('PORT') else 'localhost'
+    debug = not os.environ.get('PORT')  # 生產環境關閉 debug
+    
+    logger.info(f"啟動後端服務器於 {host}:{port}...")
+    app.run(debug=debug, port=port, host=host)
+
