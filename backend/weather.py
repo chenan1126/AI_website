@@ -3,6 +3,10 @@ import requests
 import asyncio
 import json
 from datetime import datetime, timedelta
+import urllib3
+
+# 禁用 SSL 警告（因為 CWA API 證書問題）
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 台灣中央氣象署 API 授權碼
 CWA_AUTH = "CWA-F3FCE1AF-CFF8-4531-86AD-379B18FE38A2"
@@ -38,7 +42,8 @@ async def get_weather(city_name, date=None):
         
         # 請求天氣預報數據
         url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/{dataset_id}?Authorization={CWA_AUTH}&format=JSON"
-        response = await asyncio.to_thread(requests.get, url)
+        # 禁用 SSL 驗證以避免證書問題（僅在開發/部署環境中）
+        response = await asyncio.to_thread(requests.get, url, verify=False, timeout=10)
         response.raise_for_status()
         data = response.json()
         
