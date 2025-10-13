@@ -211,7 +211,8 @@ function getWeatherForDateFromForecast(data, dateStr) {
         const aggregate = (elementNames) => {
             const values = dateWeatherData
                 .filter(item => elementNames.includes(item.element) && item.value && item.value !== '-')
-                .map(item => parseFloat(item.value));
+                .map(item => parseFloat(item.value))
+                .filter(val => !isNaN(val)); // 過濾掉 NaN 值
             return values.length > 0 ? values : null;
         };
         
@@ -234,9 +235,9 @@ function getWeatherForDateFromForecast(data, dateStr) {
 
         const uviValues = aggregate(['紫外線指數']);
         console.log(`[Weather Parser] 紫外線指數原始數據:`, uviValues);
+        console.log(`[Weather Parser] 紫外線指數完整資料:`, dateWeatherData.filter(item => item.element === '紫外線指數'));
         // 紫外線指數一天只有一個值，直接取第一個
         const uvi = uviValues && uviValues.length > 0 ? uviValues[0] : '無資料';
-        console.log(`[Weather Parser] 計算後紫外線指數:`, uvi);
 
         const descriptions = dateWeatherData.filter(item => item.element === '天氣預報綜合描述').map(item => item.value);
         let weatherDescription = descriptions.length > 0 ? descriptions[0] : '無特別天氣提醒。';
