@@ -507,7 +507,8 @@ export function calculateTripDates(query, days) {
             [_, month, day] = dateMatch.map(Number);
         }
         
-        let parsedDate = new Date(year, month - 1, day);
+        // 使用本地日期字符串創建日期，避免時區問題
+        let parsedDate = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T00:00:00`);
         if (parsedDate < today) {
             parsedDate.setFullYear(parsedDate.getFullYear() + 1);
         }
