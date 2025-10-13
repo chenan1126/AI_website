@@ -162,7 +162,7 @@ function getWeatherForDateFromForecast(data, dateStr) {
         for (const element of weatherElements) {
             let matchedSlots = 0;
             for (const slot of element.Time) {
-                const startTime = new Date(slot.DataTime);
+                const startTime = new Date(slot.StartTime);
                 if (startTime.getFullYear() === targetDate.getFullYear() &&
                     startTime.getMonth() === targetDate.getMonth() &&
                     startTime.getDate() === targetDate.getDate()) {

@@ -21,13 +21,18 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
   // 首先嘗試請求的日期
   if (weatherData[dayIndex]) {
     const candidate = weatherData[dayIndex];
-    const candidateWeather = candidate.weather || candidate;
-    console.log(`🔍 檢查日期索引 ${dayIndex} 的天氣:`, { candidate, candidateWeather });
+    console.log(`🔍 檢查日期索引 ${dayIndex} 的天氣:`, { candidate });
     
-    // 檢查 candidateWeather 是否有有效的天氣數據
-    if (candidateWeather && candidateWeather !== null && candidateWeather.condition) {
+    // 檢查是否有有效的天氣數據
+    // 數據結構: { date: "2025-10-14", weather: { condition, temp, ... } }
+    const candidateWeather = candidate.weather;
+    console.log(`🔍 天氣對象:`, { candidateWeather, hasWeather: !!candidateWeather, hasCondition: !!candidateWeather?.condition });
+    
+    if (candidateWeather && candidateWeather.condition) {
       selectedDay = candidate;
       console.log('✅ 找到有效天氣數據（當前索引）');
+    } else {
+      console.log('❌ 當前索引天氣數據無效:', candidateWeather === null ? 'weather 是 null' : '沒有 condition');
     }
   }
   
@@ -36,11 +41,15 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
     console.log('🔍 當前索引無數據，搜索其他日期...');
     for (let i = 0; i < weatherData.length; i++) {
       const candidate = weatherData[i];
-      const candidateWeather = candidate.weather || candidate;
-      console.log(`🔍 檢查日期索引 ${i}:`, { candidate, candidateWeather, hasCondition: !!candidateWeather?.condition });
+      const candidateWeather = candidate.weather;
+      console.log(`🔍 檢查日期索引 ${i}:`, { 
+        date: candidate.date,
+        hasWeather: !!candidateWeather, 
+        hasCondition: !!candidateWeather?.condition 
+      });
       
       // 檢查 candidateWeather 是否有有效的天氣數據
-      if (candidateWeather && candidateWeather !== null && candidateWeather.condition) {
+      if (candidateWeather && candidateWeather.condition) {
         selectedDay = candidate;
         actualDayIndex = i;
         console.log(`✅ 找到有效天氣數據（索引 ${i}）`);
@@ -52,13 +61,14 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
   // 如果還是沒有數據，返回 null
   if (!selectedDay) {
     console.log('❌ 天氣卡片未顯示，原因：所有日期的 weather 都是 null 或沒有 condition');
+    console.log('💡 提示：請檢查後端日誌，查看天氣 API 調用和解析過程');
     return null;
   }
   
   console.log('✅ 天氣卡片將顯示，selectedDay:', selectedDay);
   
   // Extract the actual weather data from the nested "weather" object
-  const selectedDayWeather = selectedDay.weather || selectedDay;
+  const selectedDayWeather = selectedDay.weather;
 
   // 生成日期標題 - 修正時區問題
   let targetDate;

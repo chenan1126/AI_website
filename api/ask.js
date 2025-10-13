@@ -1,14 +1,14 @@
 // api/ask.js
-const {
+import {
     getMultiDayWeatherSync,
     getPlaceDetailsSync,
     calculateRouteDistanceAndTimeSync,
     calculateTripDates,
-    extractCityName: extractCityNameFromUtils, // Rename to avoid conflict
+    extractCityName as extractCityNameFromUtils, // Rename to avoid conflict
     calculatePlayingTime,
     calculateWilsonScore
-} = require('./_utils.js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+} from './_utils.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // 配置 Gemini API
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -279,7 +279,7 @@ function calculateTripStatistics(tripData) {
 }
 
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
     // Respond to frontend health check
     if (req.method === 'GET') {
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -334,10 +334,7 @@ module.exports = async (req, res) => {
         // 2. 獲取天氣資訊
         sendSseEvent(res, 'weather', { status: 'fetching' });
         const weatherData = await getMultiDayWeatherSync(cityForWeather, tripDates);
-        console.log('[API] Weather data from CWA:', weatherData);
-        console.log('[API] Trip dates:', tripDates);
         const weatherArray = tripDates.map(date => ({ date, weather: weatherData[date] || null }));
-        console.log('[API] Weather array to send:', weatherArray);
         sendSseEvent(res, 'weather', { status: 'complete', data: weatherArray });
 
         // 3. 建立增強版提示
