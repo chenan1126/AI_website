@@ -352,6 +352,7 @@ function TripResults({ data }) {
           <WeatherCard
             weatherData={data.weather_data}
             startDate={data.start_date}
+            location={data.location}
             dayIndex={0}
           />
         </div>

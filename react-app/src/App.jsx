@@ -112,7 +112,8 @@ function App() {
                   const finalData = {
                     ...eventData.data,
                     weather_data: weatherData,
-                    start_date: startDate
+                    start_date: startDate,
+                    location: location
                   };
                   console.log('📦 App.jsx 最終數據傳遞給 TripResults:', JSON.stringify(finalData, null, 2));
                   resolve(finalData);

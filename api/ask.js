@@ -4,7 +4,6 @@ import {
     getPlaceDetailsSync,
     calculateRouteDistanceAndTimeSync,
     calculateTripDates,
-    extractCityName as extractCityNameFromUtils, // Rename to avoid conflict
     calculatePlayingTime,
     calculateWilsonScore
 } from './_utils.js';
