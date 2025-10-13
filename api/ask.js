@@ -176,6 +176,14 @@ async function enrichWithMapsData(tripData, cityLocation) {
         getPlaceDetailsSync(placeName, cityLocation).then(mapsData => {
             if (!mapsData.error) {
                 placesData[placeName] = mapsData;
+            } else if (mapsData.error && (mapsData.error.includes('歇業') || mapsData.error.includes('closed'))) {
+                // 對於歇業地點，記錄警告但不添加到placesData中
+                console.warn(`[Trip] 地點「${placeName}」可能已歇業: ${mapsData.error}`);
+                // 可以選擇添加一個標記，表示這個地點有問題
+                placesData[placeName] = { 
+                    error: mapsData.error,
+                    is_closed: true 
+                };
             }
         })
     );
@@ -186,13 +194,20 @@ async function enrichWithMapsData(tripData, cityLocation) {
         const placeName = section.location;
         if (placeName && placesData[placeName]) {
             const mapsInfo = placesData[placeName];
-            enrichedSection.maps_data = {
-                rating: mapsInfo.rating || 0,
-                user_ratings_total: mapsInfo.user_ratings_total || 0,
-                address: mapsInfo.address || '',
-                google_maps_name: mapsInfo.name || placeName,
-                wilson_score: calculateWilsonScore(mapsInfo.rating, mapsInfo.user_ratings_total)
-            };
+            
+            // 檢查是否為歇業地點
+            if (mapsInfo.is_closed) {
+                enrichedSection.warning = `注意：地點「${placeName}」${mapsInfo.error}`;
+                enrichedSection.maps_data = null; // 不設置maps_data，因為地點已歇業
+            } else {
+                enrichedSection.maps_data = {
+                    rating: mapsInfo.rating || 0,
+                    user_ratings_total: mapsInfo.user_ratings_total || 0,
+                    address: mapsInfo.address || '',
+                    google_maps_name: mapsInfo.name || placeName,
+                    wilson_score: calculateWilsonScore(mapsInfo.rating, mapsInfo.user_ratings_total)
+                };
+            }
         }
         return enrichedSection;
     });
@@ -210,9 +225,13 @@ async function enrichWithMapsData(tripData, cityLocation) {
             const promise = calculateRouteDistanceAndTimeSync(originAddress, destAddress)
                 .then(routeData => {
                     if (!routeData.error) {
+                        // 使用具體地址或Google Maps名稱，如果沒有則使用原始名稱
+                        const fromName = currentSection.maps_data?.google_maps_name || currentSection.maps_data?.address || currentSection.location;
+                        const toName = nextSection.maps_data?.google_maps_name || nextSection.maps_data?.address || nextSection.location;
+
                         currentSection.travel_info = {
-                            from: currentSection.location,
-                            to: nextSection.location,
+                            from: fromName,
+                            to: toName,
                             distance: routeData.distance_text || '',
                             duration: routeData.duration_text || '',
                             duration_value: routeData.duration_value || 0,

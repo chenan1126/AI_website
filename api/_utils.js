@@ -208,7 +208,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         // 2. Get Place Details
         const detailsUrl = new URL("https://maps.googleapis.com/maps/api/place/details/json");
         detailsUrl.searchParams.append('place_id', placeId);
-        detailsUrl.searchParams.append('fields', 'name,rating,user_ratings_total,formatted_address,geometry,types');
+        detailsUrl.searchParams.append('fields', 'name,rating,user_ratings_total,formatted_address,geometry,types,business_status,permanently_closed');
         detailsUrl.searchParams.append('language', 'zh-TW');
         detailsUrl.searchParams.append('key', GOOGLE_MAPS_API_KEY);
 
@@ -221,13 +221,37 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         }
         const result = detailsData.result;
 
+        // 檢查地點營業狀態
+        const businessStatus = result.business_status;
+        const permanentlyClosed = result.permanently_closed;
+
+        if (businessStatus === 'CLOSED_PERMANENTLY' || permanentlyClosed === true) {
+            console.warn(`[Maps] 地點「${placeName}」已永久歇業，跳過此地點`);
+            return { error: `地點「${placeName}」已永久歇業` };
+        }
+
+        if (businessStatus === 'CLOSED_TEMPORARILY') {
+            console.warn(`[Maps] 地點「${placeName}」暫時歇業，跳過此地點`);
+            return { error: `地點「${placeName}」暫時歇業` };
+        }
+
+        // 額外檢查：如果評分很低且評論很少，可能也是問題地點
+        const rating = result.rating || 0;
+        const userRatingsTotal = result.user_ratings_total || 0;
+
+        if (rating < 2.0 && userRatingsTotal < 5 && userRatingsTotal > 0) {
+            console.warn(`[Maps] 地點「${placeName}」評分過低且評論不足，可能已歇業 (評分: ${rating}, 評論數: ${userRatingsTotal})`);
+            // 不直接返回錯誤，而是記錄警告，仍然允許使用
+        }
+
         return {
             name: result.name || placeName,
-            rating: result.rating || 0,
-            user_ratings_total: result.user_ratings_total || 0,
+            rating: rating,
+            user_ratings_total: userRatingsTotal,
             address: result.formatted_address || '',
             location: result.geometry?.location || {},
-            types: result.types || []
+            types: result.types || [],
+            business_status: businessStatus
         };
     } catch (e) {
         console.error(`[Maps] 獲取景點「${placeName}」詳情時發生錯誤: ${e.message}`);
@@ -236,14 +260,86 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
 }
 
 /**
+ * 根據起點和終點智能檢測合適的交通方式
+ * @param {string} origin - 起點
+ * @param {string} destination - 終點
+ * @returns {string} 交通方式: 'driving', 'transit'
+ */
+function detectTransportationMode(origin, destination) {
+    const originLower = origin.toLowerCase();
+    const destLower = destination.toLowerCase();
+
+    // 擴展的渡輪關鍵字列表
+    const ferryKeywords = [
+        '渡輪', '渡船', 'ferry', 'ferry terminal',
+        '鼓山', '旗津', '旗津半島', '旗津區', '旗津風景區',
+        '高雄港', '高雄港區', '棧貳庫', '棧二庫',
+        '馬公', '澎湖', '白沙島', '西嶼'
+    ];
+
+    // 檢查是否包含渡輪關鍵字
+    const hasFerryOrigin = ferryKeywords.some(keyword => originLower.includes(keyword.toLowerCase()));
+    const hasFerryDest = ferryKeywords.some(keyword => destLower.includes(keyword.toLowerCase()));
+
+    // 特殊處理：鼓山到旗津的經典渡輪路線
+    const gushanToCijin = (
+        (originLower.includes('鼓山') && destLower.includes('旗津')) ||
+        (originLower.includes('旗津') && destLower.includes('鼓山'))
+    );
+
+    // 澎湖離島間的渡輪
+    const penghuFerry = (
+        (originLower.includes('馬公') || originLower.includes('澎湖')) &&
+        (destLower.includes('白沙') || destLower.includes('西嶼') ||
+         destLower.includes('澎湖') && !originLower.includes('馬公'))
+    );
+
+    if (hasFerryOrigin || hasFerryDest || gushanToCijin || penghuFerry) {
+        return 'transit'; // 使用大眾運輸模式，包含渡輪
+    }
+
+    // 檢測機場
+    const airportKeywords = ['機場', 'airport', '桃園機場', '松山機場', '高雄機場', '台中機場'];
+    if (airportKeywords.some(keyword => originLower.includes(keyword.toLowerCase())) ||
+        airportKeywords.some(keyword => destLower.includes(keyword.toLowerCase()))) {
+        return 'transit';
+    }
+
+    // 檢測火車站/高鐵/捷運
+    const stationKeywords = [
+        '火車站', '車站', '高鐵', '高鐵站', '捷運', '捷運站',
+        '台鐵', '台鐵站', '火車', 'train', 'station'
+    ];
+    if (stationKeywords.some(keyword => originLower.includes(keyword.toLowerCase())) ||
+        stationKeywords.some(keyword => destLower.includes(keyword.toLowerCase()))) {
+        return 'transit';
+    }
+
+    // 檢測港口/碼頭
+    const portKeywords = ['港', '港區', '碼頭', '港口', 'pier', 'terminal'];
+    if (portKeywords.some(keyword => originLower.includes(keyword.toLowerCase())) ||
+        portKeywords.some(keyword => destLower.includes(keyword.toLowerCase()))) {
+        return 'transit';
+    }
+
+    // 預設使用開車
+    return 'driving';
+}
+
+/**
  * 異步計算兩地間的距離和時間
  * @param {string} origin - 起點
  * @param {string} destination - 終點
- * @param {string} [mode="driving"] - 交通方式
+ * @param {string} [mode=null] - 交通方式 (可選，會自動檢測)
  * @returns {Promise<object>} 路線資訊或錯誤物件
  */
-export async function calculateRouteDistanceAndTimeSync(origin, destination, mode = "driving") {
-    console.log(`[Maps] 正在計算從「${origin}」到「${destination}」的路線...`);
+export async function calculateRouteDistanceAndTimeSync(origin, destination, mode = null) {
+    // 如果沒有指定交通方式，自動檢測
+    if (!mode) {
+        mode = detectTransportationMode(origin, destination);
+    }
+
+    console.log(`[Maps] 正在計算從「${origin}」到「${destination}」的路線 (交通方式: ${mode})...`);
     if (!GOOGLE_MAPS_API_KEY) {
         console.error("[Maps] Google Maps API Key 未設置");
         return { error: "Google Maps API Key 未設置" };

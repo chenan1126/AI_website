@@ -80,6 +80,19 @@ function TripResults({ data }) {
             <h3 style={{ color: '#1e293b', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
               <i className="fas fa-map-marker-alt"></i>
               {section.location}
+              {section.warning && (
+                <span style={{ 
+                  color: '#dc2626', 
+                  fontSize: '12px', 
+                  fontWeight: 'normal',
+                  background: '#fef2f2',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  border: '1px solid #fecaca'
+                }}>
+                  <i className="fas fa-exclamation-triangle"></i> {section.warning}
+                </span>
+              )}
             </h3>
             {section.rating && (
               <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
