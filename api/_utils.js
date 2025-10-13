@@ -234,16 +234,12 @@ function getWeatherForDateFromForecast(data, dateStr) {
 
         const uviValues = aggregate(['紫外線指數']);
         console.log(`[Weather Parser] 紫外線指數原始數據:`, uviValues);
-        const uvi = uviValues ? Math.max(...uviValues) : '無資料';
+        // 紫外線指數一天只有一個值，直接取第一個
+        const uvi = uviValues && uviValues.length > 0 ? uviValues[0] : '無資料';
         console.log(`[Weather Parser] 計算後紫外線指數:`, uvi);
 
         const descriptions = dateWeatherData.filter(item => item.element === '天氣預報綜合描述').map(item => item.value);
         let weatherDescription = descriptions.length > 0 ? descriptions[0] : '無特別天氣提醒。';
-        
-        // 添加降雨機率說明
-        if (rainChance !== '無資料' && rainChance !== '-') {
-            weatherDescription += ' ※ 降雨機率為12小時預估值，僅供參考。';
-        }
 
         let icon = '☀️';
         if (mainCondition.includes('晴')) icon = '☀️';
