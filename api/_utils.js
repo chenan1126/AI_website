@@ -100,8 +100,10 @@ function getWeatherForDateFromForecast(data, dateStr) {
                 const startTime = slot.StartTime || slot.DataTime;
                 if (!startTime) continue;
                 
-                const slotDate = new Date(startTime);
-                const slotDateStr = slotDate.toISOString().split('T')[0];
+                // 直接從台灣時區的時間字串提取日期（格式：2025-10-14T18:00:00+08:00）
+                const slotDateStr = startTime.split('T')[0]; // 取得 YYYY-MM-DD 部分
+                
+                console.log(`[Weather] Checking slot date: ${slotDateStr} vs target: ${targetDateStr}`);
                 
                 if (slotDateStr === targetDateStr) {
                     const valueObj = slot.ElementValue?.[0] || slot.Parameter?.[0];
