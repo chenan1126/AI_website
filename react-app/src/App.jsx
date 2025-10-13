@@ -71,73 +71,56 @@ function App() {
                 console.log(`[SSE Event] type: ${eventType}, data:`, eventData);
 
                 // 處理不同類型的事件
-                switch (eventType) {
-                  case 'debug_prompt':
-                    console.log("--- AI Prompt ---");
-                    console.log(eventData.prompt);
-                    console.log("-----------------");
-                    break;
-
-                  case 'parsing_result':
-                    console.log("--- PARSING RESULT ---");
-                    console.log(eventData.result);
-                    console.log("----------------------");
-                    break;
-
-                  case 'parsing':
-                    if (eventData.data) {
-                      location = eventData.data.location;
-                      days = eventData.data.days;
-                      startDate = eventData.data.dates[0];
-                      setStreamingStatus(`正在規劃 ${location} ${days}天行程...`);
-                    }
-                    break;
-
-                  case 'weather':
-                    if (eventData.status === 'fetching') {
-                      setStreamingStatus('正在獲取天氣資訊...');
-                    } else if (eventData.data) {
-                      weatherData = eventData.data;
-                      setStreamingStatus('天氣資訊已獲取，正在生成行程...');
-                    }
-                    break;
-
-                  case 'generation':
-                    setStreamingStatus('AI 正在生成行程...');
-                    break;
-
-                  case 'parsing_response':
-                    setStreamingStatus('正在解析 AI 回應...');
-                    break;
-
-                  case 'maps':
-                    if (eventData.status === 'fetching') {
-                      setStreamingStatus('正在查詢 Google Maps 資料...');
-                    }
-                    break;
-
-                  case 'result':
-                    setStreamingStatus('行程規劃完成！');
-                    resolve({
-                      ...eventData.data,
-                      weather_data: weatherData,
-                      start_date: startDate
-                    });
-                    break;
-
-                  case 'done':
-                    setStreamingStatus('處理完成！');
-                    // 不再在這裡解析數據，因為 result 事件已經處理了
-                    break;
-
-                  case 'error':
-                    console.error('串流錯誤:', eventData.message);
-                    reject(new Error(eventData.message));
-                    break;
-
-                  default:
-                    console.log(`未知事件類型: ${eventType}`);
-                    break;
+                if (eventType === 'debug_prompt') {
+                  console.log("--- AI Prompt ---");
+                  console.log(eventData.prompt);
+                  console.log("-----------------");
+                }
+                else if (eventType === 'parsing_result') {
+                  console.log("--- PARSING RESULT ---");
+                  console.log(eventData.result);
+                  console.log("----------------------");
+                }
+                else if (eventType === 'parsing' && eventData.data) {
+                  location = eventData.data.location;
+                  days = eventData.data.days;
+                  startDate = eventData.data.dates[0];
+                  setStreamingStatus(`正在規劃 ${location} ${days}天行程...`);
+                }
+                else if (eventType === 'weather') {
+                  if (eventData.status === 'fetching') {
+                    setStreamingStatus('正在獲取天氣資訊...');
+                  } else if (eventData.data) {
+                    weatherData = eventData.data;
+                    setStreamingStatus('天氣資訊已獲取，正在生成行程...');
+                  }
+                }
+                else if (eventType === 'generation') {
+                  setStreamingStatus('AI 正在生成行程...');
+                }
+                else if (eventType === 'parsing_response') {
+                  setStreamingStatus('正在解析 AI 回應...');
+                }
+                else if (eventType === 'maps') {
+                  if (eventData.status === 'fetching') {
+                    setStreamingStatus('正在查詢 Google Maps 資料...');
+                  }
+                }
+                else if (eventType === 'result') {
+                  setStreamingStatus('行程規劃完成！');
+                  resolve({
+                    ...eventData.data,
+                    weather_data: weatherData,
+                    start_date: startDate
+                  });
+                }
+                else if (eventType === 'done') {
+                  setStreamingStatus('處理完成！');
+                  // 不再在這裡解析數據，因為 result 事件已經處理了
+                }
+                else if (eventType === 'error') {
+                  console.error('串流錯誤:', eventData.message);
+                  reject(new Error(eventData.message));
                 }
               }
             }
