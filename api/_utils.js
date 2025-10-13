@@ -23,30 +23,37 @@ const CITY_MAPPING = {
  * @returns {Promise<object>} 天氣資訊物件或錯誤物件
  */
 async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
-    console.log(`[Weather] 正在為城市「${cityName}」獲取 ${timeFrom} 到 ${timeTo} 的天氣...`);
+    console.log(`[Weather API] 正在為城市「${cityName}」獲取 ${timeFrom} 到 ${timeTo} 的天氣...`);
     try {
         const datasetId = CITY_MAPPING[cityName] || "F-D0047-063";
+        console.log(`[Weather API] 使用 datasetId: ${datasetId}`);
+        
         const url = new URL(`https://opendata.cwa.gov.tw/api/v1/rest/datastore/${datasetId}`);
         url.searchParams.append('Authorization', CWA_AUTH);
         url.searchParams.append('format', 'JSON');
         url.searchParams.append('timeFrom', timeFrom);
         url.searchParams.append('timeTo', timeTo);
 
+        console.log(`[Weather API] 請求 URL: ${url.toString()}`);
+
         const response = await fetch(url.toString(), { timeout: 10000 });
         if (!response.ok) {
+            console.error(`[Weather API] HTTP 錯誤: ${response.status}`);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
 
         if (data.success !== 'true') {
-            console.error(`[Weather] API 回應失敗:`, data);
+            console.error(`[Weather API] API 回應失敗:`, data);
             return { error: "獲取天氣資料失敗" };
         }
 
+        console.log(`[Weather API] API 調用成功，有 ${data.records?.Locations?.[0]?.Location?.length || 0} 個地點`);
         return data;
 
     } catch (e) {
-        console.error(`獲取天氣資訊時發生錯誤: ${e.message}`);
+        console.error(`[Weather API] 獲取天氣資訊時發生錯誤: ${e.message}`);
+        console.error(`[Weather API] 錯誤堆棧:`, e.stack);
         return { error: `獲取天氣資訊失敗: ${e.message}` };
     }
 }
@@ -86,24 +93,31 @@ async function getWeatherSync(cityName, date) {
  */
 function getWeatherForDateFromForecast(data, dateStr) {
     try {
+        console.log(`[Weather Parser] 開始解析日期 ${dateStr} 的天氣數據...`);
+        
         const targetDate = new Date(dateStr);
         targetDate.setHours(0, 0, 0, 0);
 
         const locationData = data?.records?.Locations?.[0]?.Location?.[0];
         if (!locationData) {
+            console.error(`[Weather Parser] 無法找到 locationData`);
             return { error: "無天氣資料" };
         }
 
         const weatherElements = locationData.WeatherElement;
+        console.log(`[Weather Parser] 找到 ${weatherElements?.length || 0} 個天氣元素`);
+        
         const dateWeatherData = [];
 
         for (const element of weatherElements) {
+            let matchedSlots = 0;
             for (const slot of element.Time) {
                 const startTime = new Date(slot.DataTime);
                 if (startTime.getFullYear() === targetDate.getFullYear() &&
                     startTime.getMonth() === targetDate.getMonth() &&
                     startTime.getDate() === targetDate.getDate()) {
                     
+                    matchedSlots++;
                     const valueObj = slot.ElementValue[0];
                     let value;
                     // 根據 Python 程式碼的邏輯提取 value
@@ -123,9 +137,15 @@ function getWeatherForDateFromForecast(data, dateStr) {
                     }
                 }
             }
+            if (matchedSlots > 0) {
+                console.log(`[Weather Parser] 元素「${element.ElementName}」匹配到 ${matchedSlots} 個時間槽`);
+            }
         }
 
+        console.log(`[Weather Parser] 日期 ${dateStr} 共收集到 ${dateWeatherData.length} 筆天氣數據`);
+
         if (dateWeatherData.length === 0) {
+            console.warn(`[Weather Parser] 找不到 ${dateStr} 的天氣預報資料`);
             return { error: `找不到 ${dateStr} 的天氣預報資料` };
         }
 
@@ -188,6 +208,7 @@ function getWeatherForDateFromForecast(data, dateStr) {
  */
 export async function getMultiDayWeatherSync(cityName, dates) {
     if (!dates || dates.length === 0) {
+        console.log('[Weather] 沒有提供日期');
         return {};
     }
     
@@ -201,6 +222,7 @@ export async function getMultiDayWeatherSync(cityName, dates) {
     // 結束時間設為最後一天的 23:59:59，確保包含整天
     const timeTo = `${lastDate}T23:59:59`;
     
+    console.log(`[Weather] 城市: ${cityName}, 日期範圍: ${dates.join(', ')}`);
     console.log(`[Weather] 使用時間範圍獲取天氣: ${timeFrom} 到 ${timeTo}`);
     
     try {
@@ -212,18 +234,26 @@ export async function getMultiDayWeatherSync(cityName, dates) {
             return {};
         }
         
+        console.log(`[Weather] API 調用成功，開始解析各日期的天氣...`);
+        
         // 為每個日期提取天氣資訊
         const weatherData = {};
         for (const date of dates) {
+            console.log(`[Weather] 正在解析日期 ${date} 的天氣...`);
             const weather = getWeatherForDateFromForecast(data, date);
             if (weather && !weather.error) {
+                console.log(`[Weather] 日期 ${date} 的天氣解析成功:`, weather);
                 weatherData[date] = weather;
+            } else {
+                console.warn(`[Weather] 日期 ${date} 的天氣解析失敗:`, weather?.error);
             }
         }
         
+        console.log(`[Weather] 最終天氣數據:`, Object.keys(weatherData).length, '天有數據');
         return weatherData;
     } catch (e) {
         console.error(`[Weather] 獲取多日天氣時發生錯誤: ${e.message}`);
+        console.error(`[Weather] 錯誤堆棧:`, e.stack);
         return {};
     }
 }
