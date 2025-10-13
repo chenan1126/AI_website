@@ -347,7 +347,7 @@ function TripResults({ data }) {
   return (
     <div className="response-wrapper">
       {/* 顯示天氣卡片 - 只顯示一次 */}
-      {data.weather_data && data.weather_data.length > 0 && (
+      {data.weather_data && Array.isArray(data.weather_data) && data.weather_data.length > 0 && (
         <div style={{ marginBottom: '30px' }}>
           <WeatherCard
             weatherData={data.weather_data}

@@ -172,7 +172,7 @@ function App() {
 
       const combinedResults = {
         itineraries: validResults,
-        weather_data: validResults[0]?.weather_data || {},
+        weather_data: validResults[0]?.weather_data || [],
         start_date: validResults[0]?.start_date || null,
       };
 

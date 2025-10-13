@@ -1,7 +1,12 @@
 import React from 'react';
 
 function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
-  if (!weatherData || weatherData.length === 0) return null;
+  console.log('[WeatherCard] Received props:', { weatherData, startDate, dayIndex });
+  
+  if (!weatherData || weatherData.length === 0) {
+    console.log('[WeatherCard] No weather data, returning null');
+    return null;
+  }
 
   // 找到第一個有有效天氣數據的日期
   let selectedDay = null;
@@ -30,10 +35,17 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
   }
   
   // 如果還是沒有數據，返回 null
-  if (!selectedDay) return null;
+  if (!selectedDay) {
+    console.log('[WeatherCard] No valid weather data found in array');
+    return null;
+  }
+  
+  console.log('[WeatherCard] Selected day:', selectedDay);
   
   // Extract the actual weather data from the nested "weather" object
   const selectedDayWeather = selectedDay.weather || selectedDay;
+  
+  console.log('[WeatherCard] Selected day weather:', selectedDayWeather);
 
   // 生成日期標題 - 修正時區問題
   let targetDate;
