@@ -92,6 +92,7 @@ function App() {
                     setStreamingStatus('正在獲取天氣資訊...');
                   } else if (eventData.data) {
                     weatherData = eventData.data;
+                    console.log('[App] Received weather data:', weatherData);
                     setStreamingStatus('天氣資訊已獲取，正在生成行程...');
                   }
                 }
@@ -108,11 +109,13 @@ function App() {
                 }
                 else if (eventType === 'result') {
                   setStreamingStatus('行程規劃完成！');
-                  resolve({
+                  const resultData = {
                     ...eventData.data,
                     weather_data: weatherData,
                     start_date: startDate
-                  });
+                  };
+                  console.log('[App] Resolving with result:', resultData);
+                  resolve(resultData);
                 }
                 else if (eventType === 'done') {
                   setStreamingStatus('處理完成！');
@@ -177,6 +180,12 @@ function App() {
       };
 
       console.log('Combined Results:', combinedResults);
+      console.log('Weather data details:', {
+        hasWeatherData: !!combinedResults.weather_data,
+        isArray: Array.isArray(combinedResults.weather_data),
+        length: combinedResults.weather_data?.length,
+        weatherData: combinedResults.weather_data
+      });
       setResults(combinedResults);
       setStreamingStatus('');
     } catch (err) {

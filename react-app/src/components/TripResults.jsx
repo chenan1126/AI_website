@@ -347,6 +347,13 @@ function TripResults({ data }) {
   return (
     <div className="response-wrapper">
       {/* 顯示天氣卡片 - 只顯示一次 */}
+      {console.log('[TripResults] Checking weather data:', {
+        hasWeatherData: !!data.weather_data,
+        isArray: Array.isArray(data.weather_data),
+        length: data.weather_data?.length,
+        weatherData: data.weather_data,
+        startDate: data.start_date
+      })}
       {data.weather_data && Array.isArray(data.weather_data) && data.weather_data.length > 0 && (
         <div style={{ marginBottom: '30px' }}>
           <WeatherCard
