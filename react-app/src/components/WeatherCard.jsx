@@ -3,8 +3,35 @@ import React from 'react';
 function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
   if (!weatherData || weatherData.length === 0) return null;
 
-  // 根據選擇的天數顯示對應的天氣
-  const selectedDay = weatherData[dayIndex] || weatherData[0];
+  // 找到第一個有有效天氣數據的日期
+  let selectedDay = null;
+  let actualDayIndex = dayIndex;
+  
+  // 首先嘗試請求的日期
+  if (weatherData[dayIndex]) {
+    const candidate = weatherData[dayIndex];
+    const candidateWeather = candidate.weather || candidate;
+    if (candidateWeather && candidateWeather.weather !== null && candidateWeather.condition) {
+      selectedDay = candidate;
+    }
+  }
+  
+  // 如果請求的日期沒有數據，找到第一個有數據的日期
+  if (!selectedDay) {
+    for (let i = 0; i < weatherData.length; i++) {
+      const candidate = weatherData[i];
+      const candidateWeather = candidate.weather || candidate;
+      if (candidateWeather && candidateWeather.weather !== null && candidateWeather.condition) {
+        selectedDay = candidate;
+        actualDayIndex = i;
+        break;
+      }
+    }
+  }
+  
+  // 如果還是沒有數據，返回 null
+  if (!selectedDay) return null;
+  
   // Extract the actual weather data from the nested "weather" object
   const selectedDayWeather = selectedDay.weather || selectedDay;
 
@@ -17,7 +44,7 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
   } else {
     targetDate = new Date();
   }
-  targetDate.setDate(targetDate.getDate() + dayIndex);
+  targetDate.setDate(targetDate.getDate() + actualDayIndex);
   const dateString = `${targetDate.getMonth() + 1}/${targetDate.getDate()}`;
 
   return (
