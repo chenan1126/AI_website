@@ -92,6 +92,7 @@ function App() {
                     setStreamingStatus('正在獲取天氣資訊...');
                   } else if (eventData.data) {
                     weatherData = eventData.data;
+                    console.log('📊 App.jsx 接收到天氣數據:', JSON.stringify(weatherData, null, 2));
                     setStreamingStatus('天氣資訊已獲取，正在生成行程...');
                   }
                 }
@@ -108,11 +109,13 @@ function App() {
                 }
                 else if (eventType === 'result') {
                   setStreamingStatus('行程規劃完成！');
-                  resolve({
+                  const finalData = {
                     ...eventData.data,
                     weather_data: weatherData,
                     start_date: startDate
-                  });
+                  };
+                  console.log('📦 App.jsx 最終數據傳遞給 TripResults:', JSON.stringify(finalData, null, 2));
+                  resolve(finalData);
                 }
                 else if (eventType === 'done') {
                   setStreamingStatus('處理完成！');
