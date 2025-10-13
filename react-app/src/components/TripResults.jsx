@@ -346,18 +346,9 @@ function TripResults({ data }) {
 
   return (
     <div className="response-wrapper">
-      {console.log('🔍 TripResults 天氣數據調試信息：', {
-        hasWeatherData: !!data.weather_data,
-        isArray: Array.isArray(data.weather_data),
-        length: data.weather_data?.length,
-        weatherData: data.weather_data,
-        startDate: data.start_date
-      })}
-      
       {/* 顯示天氣卡片 - 只顯示一次 */}
       {data.weather_data && data.weather_data.length > 0 && (
         <div style={{ marginBottom: '30px' }}>
-          {console.log('✅ 天氣卡片應該顯示在下方')}
           <WeatherCard
             weatherData={data.weather_data}
             startDate={data.start_date}
@@ -366,12 +357,6 @@ function TripResults({ data }) {
         </div>
       )}
       
-      {(!data.weather_data || data.weather_data.length === 0) && (
-        console.log('❌ 天氣卡片未顯示，原因：', 
-          !data.weather_data ? 'weather_data 不存在' : 'weather_data 是空數組'
-        )
-      )}
-
       {data.itineraries.length > 1 && selectedItinerary === null && (
         <div style={{ textAlign: 'center', marginBottom: '20px', padding: '20px', background: '#f8fafc', borderRadius: '8px' }}>
           <h3 style={{ color: '#1e293b', marginBottom: '10px' }}>請選擇一個行程方案</h3>
