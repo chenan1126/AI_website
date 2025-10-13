@@ -174,7 +174,7 @@ function getWeatherForDateFromForecast(data, dateStr) {
                     if (element.ElementName === '天氣現象') value = valueObj.Weather;
                     else if (['溫度', '平均溫度', '最高溫度', '最低溫度', '最高體感溫度', '最低體感溫度'].includes(element.ElementName)) value = valueObj.Temperature || valueObj.MaxTemperature || valueObj.MinTemperature || valueObj.MaxApparentTemperature || valueObj.MinApparentTemperature;
                     else if (['相對濕度', '平均相對濕度'].includes(element.ElementName)) value = valueObj.RelativeHumidity;
-                    else if (['3小時降雨機率', '12小時降雨機率'].includes(element.ElementName)) value = valueObj.ProbabilityOfPrecipitation;
+                    else if (['12小時降雨機率'].includes(element.ElementName)) value = valueObj.ProbabilityOfPrecipitation;
                     else if (element.ElementName === '紫外線指數') value = valueObj.UVIndex;
                     else if (element.ElementName === '天氣預報綜合描述') value = valueObj.WeatherDescription;
                     else value = valueObj.value;
@@ -213,12 +213,12 @@ function getWeatherForDateFromForecast(data, dateStr) {
         const temps = aggregate(['溫度', '平均溫度']);
         const maxTemps = aggregate(['最高溫度']);
         const minTemps = aggregate(['最低溫度']);
-        const rainProbs = aggregate(['3小時降雨機率', '12小時降雨機率']);
+        const rainProbs = aggregate(['12小時降雨機率']);
 
         const avgTemp = temps ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length) : '無資料';
         const maxTemp = maxTemps ? Math.round(Math.max(...maxTemps)) : '無資料';
         const minTemp = minTemps ? Math.round(Math.min(...minTemps)) : '無資料';
-        const rainChance = rainProbs ? Math.round(rainProbs.reduce((a, b) => a + b, 0) / rainProbs.length) : '無資料';
+        const rainChance = rainProbs && rainProbs.length > 0 ? Math.round(Math.max(...rainProbs)) : '無資料';
 
         const uviValues = aggregate(['紫外線指數']);
         const uvi = uviValues ? Math.max(...uviValues) : '無資料';
@@ -244,7 +244,7 @@ function getWeatherForDateFromForecast(data, dateStr) {
             min_temp: minTemp,
             max_temp: maxTemp,
             rain_chance: rainChance,
-            uvi: uvi,
+            uvi: uviValues,
             description: weatherDescription,
             icon: icon,
             date: dateStr
