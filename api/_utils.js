@@ -168,8 +168,11 @@ function getWeatherForDateFromForecast(data, dateStr) {
             // 特別記錄紫外線指數元素的所有時間槽
             if (element.ElementName === '紫外線指數') {
                 console.log(`[Weather Parser] 紫外線指數元素，共有 ${element.Time?.length || 0} 個時間槽`);
+                console.log(`[Weather Parser] 目標日期: ${dateStr}, targetDate =`, targetDate);
                 element.Time?.forEach((slot, idx) => {
                     console.log(`[Weather Parser] 紫外線時間槽 ${idx}: StartTime = ${slot.StartTime}, ElementValue =`, slot.ElementValue);
+                    const testStartTime = new Date(slot.StartTime);
+                    console.log(`[Weather Parser] 解析後時間: ${testStartTime.toISOString()}, 年月日: ${testStartTime.getFullYear()}-${testStartTime.getMonth()}-${testStartTime.getDate()} vs ${targetDate.getFullYear()}-${targetDate.getMonth()}-${targetDate.getDate()}`);
                 });
             }
             
