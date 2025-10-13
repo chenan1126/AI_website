@@ -242,7 +242,7 @@ function WeatherCard({ weatherData, startDate, location, dayIndex = 0 }) {
                      selectedDayWeather.uvi >= 6 ? '#f59e0b' : 
                      selectedDayWeather.uvi >= 3 ? '#eab308' : '#059669'
             }}>
-              {selectedDayWeather.uvi && selectedDayWeather.uvi !== '無資料' ? selectedDayWeather.uvi : '無資料'}
+              {selectedDayWeather.uvi && selectedDayWeather.uvi !== '無資料' ? `${selectedDayWeather.uvi}%` : '無資料'}
             </div>
           </div>
         </div>
