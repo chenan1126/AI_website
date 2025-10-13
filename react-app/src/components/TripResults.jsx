@@ -2,24 +2,8 @@ import React from 'react';
 import WeatherCard from './WeatherCard';
 
 function TripResults({ data }) {
-  const [dayIndices, setDayIndices] = React.useState({}      onClick={isSelectionMode ? () => handleItinerarySelect(index) : undefined}
-      style={{
-        background: '#fff',
-        borderRadius: '12px',
-        padding: '30px',
-        marginBottom: '25px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        border: isSelectionMode ? '2px solid #e2e8f0' : '1px solid #e2e8f0',
-        minHeight: '600px',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'all 0.2s ease',
-        cursor: isSelectionMode ? 'pointer' : 'default',
-        animation: `fadeInUp 0.6s ease-out ${index * 0.1}s forwards`,
-        opacity: 0,
-        transform: 'translateY(20px)',
-        position: 'relative'
-      }}ectedItinerary, setSelectedItinerary] = React.useState(null);
+  const [dayIndices, setDayIndices] = React.useState({});
+  const [selectedItinerary, setSelectedItinerary] = React.useState(null);
 
   if (!data || !data.itineraries) {
     return null;
