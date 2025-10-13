@@ -2,7 +2,6 @@
   "name": "ai-travel-planner",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "install": "cd react-app && npm install",
     "build": "cd react-app && npm run build",
