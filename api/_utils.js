@@ -79,6 +79,19 @@ function getWeatherForDateFromForecast(data, dateStr) {
         }
 
         const weatherElements = locationData.WeatherElement;
+        
+        // 調試：檢查第一個元素的時間範圍
+        if (weatherElements && weatherElements.length > 0 && weatherElements[0].Time) {
+            console.log(`[Weather] First element (${weatherElements[0].ElementName}) has ${weatherElements[0].Time.length} time slots`);
+            if (weatherElements[0].Time.length > 0) {
+                const firstSlot = weatherElements[0].Time[0];
+                const lastSlot = weatherElements[0].Time[weatherElements[0].Time.length - 1];
+                console.log(`[Weather] Time range: ${firstSlot.StartTime || firstSlot.DataTime} to ${lastSlot.StartTime || lastSlot.DataTime}`);
+            }
+        }
+        
+        console.log(`[Weather] Looking for date: ${targetDateStr}`);
+        
         const dateWeatherData = [];
 
         for (const element of weatherElements) {
