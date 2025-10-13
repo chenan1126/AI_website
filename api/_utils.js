@@ -179,6 +179,11 @@ function getWeatherForDateFromForecast(data, dateStr) {
                     else if (element.ElementName === '天氣預報綜合描述') value = valueObj.WeatherDescription;
                     else value = valueObj.value;
 
+                    // 特別記錄降雨機率和紫外線指數
+                    if (element.ElementName === '12小時降雨機率' || element.ElementName === '紫外線指數') {
+                        console.log(`[Weather Parser] ${element.ElementName}: value = ${value}, valueObj =`, valueObj);
+                    }
+
                     if (value) {
                          dateWeatherData.push({
                             element: element.ElementName,
@@ -214,14 +219,20 @@ function getWeatherForDateFromForecast(data, dateStr) {
         const maxTemps = aggregate(['最高溫度']);
         const minTemps = aggregate(['最低溫度']);
         const rainProbs = aggregate(['12小時降雨機率']);
+        
+        console.log(`[Weather Parser] 降雨機率原始數據:`, rainProbs);
 
         const avgTemp = temps ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length) : '無資料';
         const maxTemp = maxTemps ? Math.round(Math.max(...maxTemps)) : '無資料';
         const minTemp = minTemps ? Math.round(Math.min(...minTemps)) : '無資料';
         const rainChance = rainProbs && rainProbs.length > 0 ? Math.round(Math.max(...rainProbs)) : '無資料';
+        
+        console.log(`[Weather Parser] 計算後降雨機率:`, rainChance);
 
         const uviValues = aggregate(['紫外線指數']);
+        console.log(`[Weather Parser] 紫外線指數原始數據:`, uviValues);
         const uvi = uviValues ? Math.max(...uviValues) : '無資料';
+        console.log(`[Weather Parser] 計算後紫外線指數:`, uvi);
 
         const descriptions = dateWeatherData.filter(item => item.element === '天氣預報綜合描述').map(item => item.value);
         let weatherDescription = descriptions.length > 0 ? descriptions[0] : '無特別天氣提醒。';
