@@ -176,12 +176,17 @@ function getWeatherForDateFromForecast(data, dateStr) {
                     matchedSlots++;
                     const valueObj = slot.ElementValue[0];
                     let value;
+                    let extraData = {}; // 用於存儲額外資訊
+                    
                     // 根據 Python 程式碼的邏輯提取 value
                     if (element.ElementName === '天氣現象') value = valueObj.Weather;
                     else if (['溫度', '平均溫度', '最高溫度', '最低溫度', '最高體感溫度', '最低體感溫度'].includes(element.ElementName)) value = valueObj.Temperature || valueObj.MaxTemperature || valueObj.MinTemperature || valueObj.MaxApparentTemperature || valueObj.MinApparentTemperature;
                     else if (['相對濕度', '平均相對濕度'].includes(element.ElementName)) value = valueObj.RelativeHumidity;
                     else if (['12小時降雨機率'].includes(element.ElementName)) value = valueObj.ProbabilityOfPrecipitation;
-                    else if (element.ElementName === '紫外線指數') value = valueObj.UVIndex;
+                    else if (element.ElementName === '紫外線指數') {
+                        value = valueObj.UVIndex;
+                        extraData.uvExposureLevel = valueObj.UVExposureLevel; // 保存曝曬等級
+                    }
                     else if (element.ElementName === '天氣預報綜合描述') value = valueObj.WeatherDescription;
                     else value = valueObj.value;
 
@@ -189,6 +194,7 @@ function getWeatherForDateFromForecast(data, dateStr) {
                          dateWeatherData.push({
                             element: element.ElementName,
                             value: value,
+                            ...extraData // 展開額外資訊
                         });
                     }
                 }
@@ -230,6 +236,10 @@ function getWeatherForDateFromForecast(data, dateStr) {
         const uviValues = aggregate(['紫外線指數']);
         // 紫外線指數一天只有一個值，直接取第一個
         const uvi = uviValues && uviValues.length > 0 ? uviValues[0] : '無資料';
+        
+        // 提取紫外線曝曬等級
+        const uviData = dateWeatherData.find(item => item.element === '紫外線指數');
+        const uvExposureLevel = uviData?.uvExposureLevel || null;
 
         const descriptions = dateWeatherData.filter(item => item.element === '天氣預報綜合描述').map(item => item.value);
         let weatherDescription = descriptions.length > 0 ? descriptions[0] : '無特別天氣提醒。';
@@ -248,6 +258,7 @@ function getWeatherForDateFromForecast(data, dateStr) {
             max_temp: maxTemp,
             rain_chance: rainChance,
             uvi: uvi,
+            uv_exposure_level: uvExposureLevel, // 紫外線曝曬等級
             description: weatherDescription,
             icon: icon,
             date: dateStr
