@@ -244,7 +244,7 @@ function getWeatherForDateFromForecast(data, dateStr) {
             min_temp: minTemp,
             max_temp: maxTemp,
             rain_chance: rainChance,
-            uvi: uviValues,
+            uvi: uvi,
             description: weatherDescription,
             icon: icon,
             date: dateStr
