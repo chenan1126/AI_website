@@ -164,23 +164,14 @@ function getWeatherForDateFromForecast(data, dateStr) {
 
         for (const element of weatherElements) {
             let matchedSlots = 0;
-            
-            // 特別記錄紫外線指數元素的所有時間槽
-            if (element.ElementName === '紫外線指數') {
-                console.log(`[Weather Parser] 紫外線指數元素，共有 ${element.Time?.length || 0} 個時間槽`);
-                console.log(`[Weather Parser] 目標日期: ${dateStr}, targetDate =`, targetDate);
-                element.Time?.forEach((slot, idx) => {
-                    console.log(`[Weather Parser] 紫外線時間槽 ${idx}: StartTime = ${slot.StartTime}, ElementValue =`, slot.ElementValue);
-                    const testStartTime = new Date(slot.StartTime);
-                    console.log(`[Weather Parser] 解析後時間: ${testStartTime.toISOString()}, 年月日: ${testStartTime.getFullYear()}-${testStartTime.getMonth()}-${testStartTime.getDate()} vs ${targetDate.getFullYear()}-${targetDate.getMonth()}-${targetDate.getDate()}`);
-                });
-            }
-            
             for (const slot of element.Time) {
                 const startTime = new Date(slot.StartTime);
-                if (startTime.getFullYear() === targetDate.getFullYear() &&
-                    startTime.getMonth() === targetDate.getMonth() &&
-                    startTime.getDate() === targetDate.getDate()) {
+                
+                // 從 StartTime 中提取日期字串（YYYY-MM-DD），避免時區問題
+                const startDateStr = slot.StartTime.split('T')[0]; // 取 "2025-10-15"
+                const isDateMatch = startDateStr === dateStr;
+                
+                if (isDateMatch) {
                     
                     matchedSlots++;
                     const valueObj = slot.ElementValue[0];
@@ -193,11 +184,6 @@ function getWeatherForDateFromForecast(data, dateStr) {
                     else if (element.ElementName === '紫外線指數') value = valueObj.UVIndex;
                     else if (element.ElementName === '天氣預報綜合描述') value = valueObj.WeatherDescription;
                     else value = valueObj.value;
-
-                    // 特別記錄降雨機率和紫外線指數
-                    if (element.ElementName === '12小時降雨機率' || element.ElementName === '紫外線指數') {
-                        console.log(`[Weather Parser] ${element.ElementName}: 匹配成功！value = ${value}, valueObj =`, valueObj);
-                    }
 
                     if (value) {
                          dateWeatherData.push({
@@ -235,19 +221,13 @@ function getWeatherForDateFromForecast(data, dateStr) {
         const maxTemps = aggregate(['最高溫度']);
         const minTemps = aggregate(['最低溫度']);
         const rainProbs = aggregate(['12小時降雨機率']);
-        
-        console.log(`[Weather Parser] 降雨機率原始數據:`, rainProbs);
 
         const avgTemp = temps ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length) : '無資料';
         const maxTemp = maxTemps ? Math.round(Math.max(...maxTemps)) : '無資料';
         const minTemp = minTemps ? Math.round(Math.min(...minTemps)) : '無資料';
         const rainChance = rainProbs && rainProbs.length > 0 ? Math.round(Math.max(...rainProbs)) : '無資料';
-        
-        console.log(`[Weather Parser] 計算後降雨機率:`, rainChance);
 
         const uviValues = aggregate(['紫外線指數']);
-        console.log(`[Weather Parser] 紫外線指數原始數據:`, uviValues);
-        console.log(`[Weather Parser] 紫外線指數完整資料:`, dateWeatherData.filter(item => item.element === '紫外線指數'));
         // 紫外線指數一天只有一個值，直接取第一個
         const uvi = uviValues && uviValues.length > 0 ? uviValues[0] : '無資料';
 
