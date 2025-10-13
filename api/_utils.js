@@ -27,15 +27,13 @@ const CITY_MAPPING_WEEK = {
 };
 
 /**
- * 異步獲取指定城市和日期的天氣資訊（使用一週預報 API）
+ * 異步獲取指定城市的完整一週天氣預報數據
  * @param {string} cityName - 城市中文名
- * @param {string} [date] - 日期字串 (YYYY-MM-DD)，可選
- * @returns {Promise<object>} 天氣資訊物件或錯誤物件
+ * @returns {Promise<object>} 完整的API回應數據或錯誤物件
  */
-async function getWeatherSync(cityName, date) {
-    console.log(`[Weather] 正在為城市「${cityName}」的日期「${date}」獲取天氣...`);
+async function getWeeklyForecastData(cityName) {
+    console.log(`[Weather] 正在為城市「${cityName}」獲取完整一週天氣預報...`);
     try {
-        // 優先使用一週預報 API，如果失敗則使用 36 小時預報 API
         const datasetId = CITY_MAPPING_WEEK[cityName] || CITY_MAPPING_36HR[cityName] || "F-D0047-065";
         const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${datasetId}?Authorization=${CWA_AUTH}&format=JSON`;
 
@@ -50,182 +48,93 @@ async function getWeatherSync(cityName, date) {
             return { error: "獲取天氣資料失敗" };
         }
 
-        if (date) {
-            return getWeatherForDateFromForecast(data, date);
-        }
-        // 如果沒有指定日期，此處邏輯暫不實現，因為目前前端總是提供日期
-        return { error: "需要提供具體日期" };
+        return data;
 
     } catch (e) {
-        console.error(`獲取天氣資訊時發生錯誤: ${e.message}`);
+        console.error(`獲取一週天氣預報時發生錯誤: ${e.message}`);
         return { error: `獲取天氣資訊失敗: ${e.message}` };
     }
 }
 
 /**
- * 從預報數據中提取指定日期的天氣資訊
- * @param {object} data - CWA API 回傳的完整資料
+ * 從過濾後的天氣數據中提取指定日期的天氣資訊
+ * @param {object} filteredSlots - 按日期分組的時間槽數據
  * @param {string} dateStr - 目標日期字串 (YYYY-MM-DD)
  * @returns {object} 整理後的單日天氣資訊
  */
-function getWeatherForDateFromForecast(data, dateStr) {
+function extractWeatherFromFilteredSlots(filteredSlots, dateStr) {
     try {
-        const targetDate = new Date(dateStr + 'T00:00:00');
-        const targetDateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD
-
-        const locationData = data?.records?.Locations?.[0]?.Location?.[0];
-        if (!locationData) {
-            return { error: "無天氣資料" };
+        if (!filteredSlots[dateStr]) {
+            return { error: `無 ${dateStr} 的天氣資料` };
         }
 
-        const weatherElements = locationData.WeatherElement;
-        
-        // 調試：檢查第一個元素的時間範圍
-        if (weatherElements && weatherElements.length > 0 && weatherElements[0].Time) {
-            console.log(`[Weather] First element (${weatherElements[0].ElementName}) has ${weatherElements[0].Time.length} time slots`);
-            if (weatherElements[0].Time.length > 0) {
-                const firstSlot = weatherElements[0].Time[0];
-                const lastSlot = weatherElements[0].Time[weatherElements[0].Time.length - 1];
-                console.log(`[Weather] Time range: ${firstSlot.StartTime || firstSlot.DataTime} to ${lastSlot.StartTime || lastSlot.DataTime}`);
+        const dateSlots = filteredSlots[dateStr];
+        const weatherData = {};
+
+        // 處理每個天氣元素
+        for (const [elementName, slots] of Object.entries(dateSlots)) {
+            if (slots.length === 0) continue;
+
+            // 取第一個slot的值（因為同一日期可能有多個時間槽）
+            const slot = slots[0];
+            const valueObj = slot.ElementValue?.[0] || slot.Parameter?.[0];
+            if (!valueObj) continue;
+
+            let value;
+            // 一週預報 API 的欄位結構
+            if (elementName === 'Wx') {
+                // 天氣現象
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else if (elementName === 'AT') {
+                // 體感溫度
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else if (elementName === 'T') {
+                // 溫度
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else if (elementName === 'RH') {
+                // 相對濕度
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else if (elementName === 'CI') {
+                // 舒適度
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else if (elementName === 'PoP12h' || elementName === 'PoP6h') {
+                // 降雨機率
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else if (elementName === 'MinT') {
+                // 最低溫度
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else if (elementName === 'MaxT') {
+                // 最高溫度
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else if (elementName === 'UVI') {
+                // 紫外線指數
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else if (elementName === 'WeatherDescription') {
+                // 天氣預報綜合描述
+                value = valueObj.parameterName || valueObj.ParameterName;
+            } else {
+                value = valueObj.parameterName || valueObj.ParameterName || valueObj.value;
             }
-        }
-        
-        console.log(`[Weather] Looking for date: ${targetDateStr}`);
-        
-        const dateWeatherData = [];
 
-        for (const element of weatherElements) {
-            for (const slot of element.Time) {
-                // 一週預報 API 使用 StartTime 和 EndTime
-                const startTime = slot.StartTime || slot.DataTime;
-                if (!startTime) continue;
-                
-                // 直接從台灣時區的時間字串提取日期（格式：2025-10-14T18:00:00+08:00）
-                const slotDateStr = startTime.split('T')[0]; // 取得 YYYY-MM-DD 部分
-                
-                console.log(`[Weather] Checking slot date: ${slotDateStr} vs target: ${targetDateStr}`);
-                
-                if (slotDateStr === targetDateStr) {
-                    const valueObj = slot.ElementValue?.[0] || slot.Parameter?.[0];
-                    if (!valueObj) continue;
-                    
-                    let value;
-                    // 一週預報 API 的欄位結構
-                    if (element.ElementName === 'Wx') {
-                        // 天氣現象
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else if (element.ElementName === 'AT') {
-                        // 體感溫度
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else if (element.ElementName === 'T') {
-                        // 溫度
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else if (element.ElementName === 'RH') {
-                        // 相對濕度
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else if (element.ElementName === 'CI') {
-                        // 舒適度
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else if (element.ElementName === 'PoP12h' || element.ElementName === 'PoP6h') {
-                        // 降雨機率
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else if (element.ElementName === 'MinT') {
-                        // 最低溫度
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else if (element.ElementName === 'MaxT') {
-                        // 最高溫度
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else if (element.ElementName === 'UVI') {
-                        // 紫外線指數
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else if (element.ElementName === 'WeatherDescription') {
-                        // 天氣預報綜合描述
-                        value = valueObj.parameterName || valueObj.ParameterName;
-                    } else {
-                        value = valueObj.parameterName || valueObj.ParameterName || valueObj.value;
-                    }
-
-                    if (value && value !== ' ') {
-                        dateWeatherData.push({
-                            element: element.ElementName,
-                            value: value,
-                        });
-                    }
-                }
+            if (value && value !== ' ') {
+                weatherData[elementName] = value;
             }
         }
 
-        if (dateWeatherData.length === 0) {
-            console.log(`[Weather] 找不到 ${dateStr} 的天氣預報資料`);
-            return { error: `找不到 ${dateStr} 的天氣預報資料` };
+        // 如果沒有任何數據，返回錯誤
+        if (Object.keys(weatherData).length === 0) {
+            return { error: `無 ${dateStr} 的有效天氣資料` };
         }
-
-        // 統計數據
-        const aggregate = (elementNames) => {
-            const values = dateWeatherData
-                .filter(item => elementNames.includes(item.element) && item.value && item.value !== '-' && item.value !== ' ')
-                .map(item => {
-                    const num = parseFloat(item.value);
-                    return isNaN(num) ? null : num;
-                })
-                .filter(v => v !== null);
-            return values.length > 0 ? values : null;
-        };
-        
-        // 提取天氣現象
-        const conditions = dateWeatherData.filter(item => item.element === 'Wx').map(item => item.value);
-        const mainCondition = conditions.length > 0 ? conditions[0] : '無資料';
-
-        // 提取溫度數據
-        const temps = aggregate(['T', 'AT']);
-        const maxTemps = aggregate(['MaxT']);
-        const minTemps = aggregate(['MinT']);
-        const rainProbs = aggregate(['PoP12h', 'PoP6h']);
-
-        const avgTemp = temps ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length) : '無資料';
-        const maxTemp = maxTemps ? Math.round(Math.max(...maxTemps)) : '無資料';
-        const minTemp = minTemps ? Math.round(Math.min(...minTemps)) : '無資料';
-        const rainChance = rainProbs ? Math.round(rainProbs.reduce((a, b) => a + b, 0) / rainProbs.length) : '無資料';
-
-        const uviValues = aggregate(['UVI']);
-        const uvi = uviValues ? Math.max(...uviValues) : '無資料';
-
-        const descriptions = dateWeatherData.filter(item => item.element === 'WeatherDescription').map(item => item.value);
-        const weatherDescription = descriptions.length > 0 ? descriptions[0] : '無特別天氣提醒。';
-
-        let icon = '☀️';
-        if (mainCondition.includes('晴')) icon = '☀️';
-        else if (mainCondition.includes('雨')) icon = '🌧️';
-        else if (mainCondition.includes('雲') || mainCondition.includes('陰')) icon = '☁️';
-        else if (mainCondition.includes('雷')) icon = '⛈️';
-        else if (mainCondition.includes('雪')) icon = '❄️';
-
-        console.log(`[Weather] ${dateStr} 天氣資料:`, {
-            condition: mainCondition,
-            temp: avgTemp,
-            min_temp: minTemp,
-            max_temp: maxTemp,
-            rain_chance: rainChance
-        });
 
         return {
-            condition: mainCondition,
-            temp: avgTemp,
-            min_temp: minTemp,
-            max_temp: maxTemp,
-            rain_chance: rainChance,
-            uvi: uvi,
-            description: weatherDescription,
-            icon: icon,
+            ...weatherData,
             date: dateStr
         };
 
     } catch (e) {
-        console.error(`[Weather] 解析天氣預報失敗:`, e);
+        console.error(`[Weather] 解析過濾後的天氣數據失敗:`, e);
         return { error: `解析天氣預報失敗: ${e.message}` };
     }
-}
-
 /**
  * 獲取多日期的天氣資訊
  * @param {string} cityName - 城市中文名
@@ -237,23 +146,69 @@ export async function getMultiDayWeatherSync(cityName, dates) {
         return {};
     }
     console.log(`[Weather] Fetching weather for ${cityName}, dates:`, dates);
-    const weatherPromises = dates.map(date => getWeatherSync(cityName, date));
-    const results = await Promise.all(weatherPromises);
-    
-    console.log('[Weather] Results from API:', results);
-    
-    const weatherData = {};
-    dates.forEach((date, index) => {
-        // 只添加有有效數據的結果，忽略錯誤
-        if (results[index] && !results[index].error) {
-            weatherData[date] = results[index];
-            console.log(`[Weather] Added data for ${date}:`, results[index]);
-        } else {
-            console.log(`[Weather] No valid data for ${date}:`, results[index]);
+
+    // 計算時間範圍
+    const timeFrom = dates[0] + "T00:00:00+08:00";
+    const timeTo = dates[dates.length - 1] + "T23:59:59+08:00";
+    console.log(`[Weather] Time range: ${timeFrom} to ${timeTo}`);
+
+    // 獲取完整一週天氣預報數據
+    const forecastData = await getWeeklyForecastData(cityName);
+    if (forecastData.error) {
+        console.error(`[Weather] Failed to get forecast data:`, forecastData.error);
+        return {};
+    }
+
+    // 過濾相關時間槽
+    const locationData = forecastData?.records?.Locations?.[0]?.Location?.[0];
+    if (!locationData) {
+        console.error(`[Weather] No location data in forecast`);
+        return {};
+    }
+
+    const weatherElements = locationData.WeatherElement;
+    const filteredSlots = {};
+
+    // 為每個元素過濾時間槽
+    for (const element of weatherElements) {
+        for (const slot of element.Time) {
+            const startTime = slot.StartTime || slot.DataTime;
+            if (!startTime) continue;
+
+            // 檢查是否在時間範圍內
+            if (startTime >= timeFrom && startTime <= timeTo) {
+                const dateKey = startTime.split('T')[0]; // YYYY-MM-DD
+
+                if (!filteredSlots[dateKey]) {
+                    filteredSlots[dateKey] = {};
+                }
+                if (!filteredSlots[dateKey][element.ElementName]) {
+                    filteredSlots[dateKey][element.ElementName] = [];
+                }
+                filteredSlots[dateKey][element.ElementName].push(slot);
+            }
         }
-        // 如果沒有數據，weatherData[date] 會是 undefined，這是正常的
-    });
-    
+    }
+
+    console.log(`[Weather] Filtered slots for dates:`, Object.keys(filteredSlots));
+
+    // 轉換為最終格式
+    const weatherData = {};
+    for (const date of dates) {
+        if (filteredSlots[date]) {
+            // 使用新的函數從過濾後的數據中提取天氣資訊
+            const dateData = extractWeatherFromFilteredSlots(filteredSlots, date);
+            if (!dateData.error) {
+                weatherData[date] = dateData;
+                console.log(`[Weather] Added data for ${date}`);
+            } else {
+                console.log(`[Weather] No valid data for ${date}:`, dateData.error);
+            }
+        } else {
+            console.log(`[Weather] No slots found for ${date}`);
+        }
+    }
+
     console.log('[Weather] Final weather data object:', weatherData);
     return weatherData;
 }
