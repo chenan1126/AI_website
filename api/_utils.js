@@ -135,6 +135,8 @@ function extractWeatherFromFilteredSlots(filteredSlots, dateStr) {
         console.error(`[Weather] 解析過濾後的天氣數據失敗:`, e);
         return { error: `解析天氣預報失敗: ${e.message}` };
     }
+}
+
 /**
  * 獲取多日期的天氣資訊
  * @param {string} cityName - 城市中文名
