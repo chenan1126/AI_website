@@ -501,10 +501,13 @@ export function calculateTripDates(query, days) {
     if (dateMatch) {
         let year, month, day;
         if (dateMatch.length === 4) { // YYYY-MM-DD
-            [_, year, month, day] = dateMatch.map(Number);
+            year = parseInt(dateMatch[1], 10);
+            month = parseInt(dateMatch[2], 10);
+            day = parseInt(dateMatch[3], 10);
         } else { // MM-DD or MM月DD日
             year = today.getFullYear();
-            [_, month, day] = dateMatch.map(Number);
+            month = parseInt(dateMatch[1], 10);
+            day = parseInt(dateMatch[2], 10);
         }
         
         // 使用本地日期字符串創建日期，避免時區問題
