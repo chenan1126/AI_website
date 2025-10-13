@@ -164,6 +164,15 @@ function getWeatherForDateFromForecast(data, dateStr) {
 
         for (const element of weatherElements) {
             let matchedSlots = 0;
+            
+            // 特別記錄紫外線指數元素的所有時間槽
+            if (element.ElementName === '紫外線指數') {
+                console.log(`[Weather Parser] 紫外線指數元素，共有 ${element.Time?.length || 0} 個時間槽`);
+                element.Time?.forEach((slot, idx) => {
+                    console.log(`[Weather Parser] 紫外線時間槽 ${idx}: StartTime = ${slot.StartTime}, ElementValue =`, slot.ElementValue);
+                });
+            }
+            
             for (const slot of element.Time) {
                 const startTime = new Date(slot.StartTime);
                 if (startTime.getFullYear() === targetDate.getFullYear() &&
@@ -184,7 +193,7 @@ function getWeatherForDateFromForecast(data, dateStr) {
 
                     // 特別記錄降雨機率和紫外線指數
                     if (element.ElementName === '12小時降雨機率' || element.ElementName === '紫外線指數') {
-                        console.log(`[Weather Parser] ${element.ElementName}: value = ${value}, valueObj =`, valueObj);
+                        console.log(`[Weather Parser] ${element.ElementName}: 匹配成功！value = ${value}, valueObj =`, valueObj);
                     }
 
                     if (value) {
