@@ -5,7 +5,7 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
     hasWeatherData: !!weatherData, 
     isArray: Array.isArray(weatherData),
     length: weatherData?.length,
-    weatherData,
+    weatherData: JSON.stringify(weatherData, null, 2),
     startDate 
   });
 
@@ -21,12 +21,18 @@ function WeatherCard({ weatherData, startDate, dayIndex = 0 }) {
   // 首先嘗試請求的日期
   if (weatherData[dayIndex]) {
     const candidate = weatherData[dayIndex];
-    console.log(`🔍 檢查日期索引 ${dayIndex} 的天氣:`, { candidate });
+    console.log(`🔍 檢查日期索引 ${dayIndex} 的天氣:`, JSON.stringify(candidate, null, 2));
     
     // 檢查是否有有效的天氣數據
     // 數據結構: { date: "2025-10-14", weather: { condition, temp, ... } }
     const candidateWeather = candidate.weather;
-    console.log(`🔍 天氣對象:`, { candidateWeather, hasWeather: !!candidateWeather, hasCondition: !!candidateWeather?.condition });
+    console.log(`🔍 天氣對象詳細信息:`, { 
+      candidateWeather: JSON.stringify(candidateWeather, null, 2),
+      hasWeather: !!candidateWeather, 
+      hasCondition: !!candidateWeather?.condition,
+      condition: candidateWeather?.condition,
+      allKeys: candidateWeather ? Object.keys(candidateWeather) : []
+    });
     
     if (candidateWeather && candidateWeather.condition) {
       selectedDay = candidate;
