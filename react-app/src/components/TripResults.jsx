@@ -354,13 +354,58 @@ function TripResults({ data }) {
         weatherData: data.weather_data,
         startDate: data.start_date
       })}
-      {data.weather_data && Array.isArray(data.weather_data) && data.weather_data.length > 0 && (
+      
+      {/* 顯示調試信息 */}
+      <div style={{ 
+        background: '#fff3cd', 
+        border: '1px solid #ffc107', 
+        padding: '15px', 
+        borderRadius: '8px',
+        marginBottom: '20px',
+        fontFamily: 'monospace',
+        fontSize: '12px'
+      }}>
+        <strong>🔍 天氣數據調試信息：</strong>
+        <pre style={{ marginTop: '10px', whiteSpace: 'pre-wrap' }}>
+          {JSON.stringify({
+            hasWeatherData: !!data.weather_data,
+            isArray: Array.isArray(data.weather_data),
+            length: data.weather_data?.length,
+            weatherData: data.weather_data,
+            startDate: data.start_date
+          }, null, 2)}
+        </pre>
+      </div>
+      
+      {data.weather_data && Array.isArray(data.weather_data) && data.weather_data.length > 0 ? (
         <div style={{ marginBottom: '30px' }}>
+          <div style={{ 
+            background: '#d1ecf1', 
+            border: '1px solid #17a2b8', 
+            padding: '10px', 
+            borderRadius: '8px',
+            marginBottom: '10px'
+          }}>
+            ✅ 天氣卡片應該顯示在下方
+          </div>
           <WeatherCard
             weatherData={data.weather_data}
             startDate={data.start_date}
             dayIndex={0}
           />
+        </div>
+      ) : (
+        <div style={{ 
+          background: '#f8d7da', 
+          border: '1px solid #dc3545', 
+          padding: '15px', 
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}>
+          ❌ 天氣卡片未顯示，原因：
+          {!data.weather_data && <div>• weather_data 為空</div>}
+          {data.weather_data && !Array.isArray(data.weather_data) && <div>• weather_data 不是數組（類型：{typeof data.weather_data}）</div>}
+          {data.weather_data && Array.isArray(data.weather_data) && data.weather_data.length === 0 && <div>• weather_data 是空數組</div>}
         </div>
       )}
 
