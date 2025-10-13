@@ -33,7 +33,6 @@ function App() {
   // 處理串流請求
   const handleStreamRequest = async (sessionId, question) => {
     return new Promise((resolve, reject) => {
-      let accumulatedText = '';
       let weatherData = null;
       let startDate = null;
       let location = '';
@@ -114,32 +113,9 @@ function App() {
                     start_date: startDate
                   });
                 }
-                else if (eventType === 'chunk') {
-                  accumulatedText += eventData.text;
-                  setStreamingStatus('接收中...');
-                }
                 else if (eventType === 'done') {
                   setStreamingStatus('處理完成！');
-                  // 解析累積的文字
-                  try {
-                    // 提取 JSON 部分
-                    const jsonMatch = accumulatedText.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                      const parsedData = JSON.parse(jsonMatch[0]);
-                      resolve({
-                        ...parsedData,
-                        weather_data: weatherData,
-                        start_date: startDate,
-                        title: parsedData.title || `${location}${days}天行程`
-                      });
-                    } else {
-                      console.warn('未找到 JSON 數據，返回空結果');
-                      resolve(null);
-                    }
-                  } catch (e) {
-                    console.error('解析 JSON 失敗:', e, accumulatedText);
-                    resolve(null);
-                  }
+                  // 不再在這裡解析數據，因為 result 事件已經處理了
                 }
                 else if (eventType === 'error') {
                   console.error('串流錯誤:', eventData.message);
@@ -173,20 +149,12 @@ function App() {
     const sessionId = 'session-' + Date.now();
 
     try {
-      // 並行請求兩個行程（串流模式）
-      const streamPromises = [
-        handleStreamRequest(sessionId + '-1', question),
-        handleStreamRequest(sessionId + '-2', question),
-      ];
+      // 只請求一個行程（移除並行請求）
+      const result = await handleStreamRequest(sessionId, question);
 
-      const apiResults = await Promise.all(streamPromises);
+      console.log('API Result:', result);
 
-      console.log('API Results:', apiResults);
-
-      // 合併兩個行程到一個結果中
-      const validResults = apiResults.filter(r => r !== null);
-
-      if (validResults.length === 0) {
+      if (!result) {
         setError('無法生成行程，請重試');
         setLoading(false);
         setStreamingStatus('');
@@ -194,9 +162,9 @@ function App() {
       }
 
       const combinedResults = {
-        itineraries: validResults,
-        weather_data: validResults[0]?.weather_data || {},
-        start_date: validResults[0]?.start_date || null,
+        itineraries: [result], // 只包含一個行程
+        weather_data: result.weather_data || {},
+        start_date: result.start_date || null,
       };
 
       console.log('Combined Results:', combinedResults);
