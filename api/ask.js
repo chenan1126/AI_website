@@ -1,14 +1,14 @@
 // api/ask.js
-import {
+const {
     getMultiDayWeatherSync,
     getPlaceDetailsSync,
     calculateRouteDistanceAndTimeSync,
     calculateTripDates,
-    extractCityName as extractCityNameFromUtils, // Rename to avoid conflict
+    extractCityName: extractCityNameFromUtils, // Rename to avoid conflict
     calculatePlayingTime,
     calculateWilsonScore
-} from './_utils.js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+} = require('./_utils.js');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // 配置 Gemini API
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -279,7 +279,7 @@ function calculateTripStatistics(tripData) {
 }
 
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
     // Respond to frontend health check
     if (req.method === 'GET') {
         res.setHeader('Access-Control-Allow-Origin', '*');
