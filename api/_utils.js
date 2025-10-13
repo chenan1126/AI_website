@@ -175,8 +175,8 @@ function getWeatherForDateFromForecast(data, dateStr) {
                     else if (['溫度', '平均溫度', '最高溫度', '最低溫度', '最高體感溫度', '最低體感溫度'].includes(element.ElementName)) value = valueObj.Temperature || valueObj.MaxTemperature || valueObj.MinTemperature || valueObj.MaxApparentTemperature || valueObj.MinApparentTemperature;
                     else if (['相對濕度', '平均相對濕度'].includes(element.ElementName)) value = valueObj.RelativeHumidity;
                     else if (['3小時降雨機率', '12小時降雨機率'].includes(element.ElementName)) value = valueObj.ProbabilityOfPrecipitation;
-                    else if (element.ElementName === '紫外線指數') value = valueObj.value;
-                    else if (element.ElementName === '天氣預報綜合描述') value = valueObj.value;
+                    else if (element.ElementName === '紫外線指數') value = valueObj.UVIndex;
+                    else if (element.ElementName === '天氣預報綜合描述') value = valueObj.WeatherDescription;
                     else value = valueObj.value;
 
                     if (value) {
@@ -224,7 +224,12 @@ function getWeatherForDateFromForecast(data, dateStr) {
         const uvi = uviValues ? Math.max(...uviValues) : '無資料';
 
         const descriptions = dateWeatherData.filter(item => item.element === '天氣預報綜合描述').map(item => item.value);
-        const weatherDescription = descriptions.length > 0 ? descriptions[0] : '無特別天氣提醒。';
+        let weatherDescription = descriptions.length > 0 ? descriptions[0] : '無特別天氣提醒。';
+        
+        // 添加降雨機率說明
+        if (rainChance !== '無資料' && rainChance !== '-') {
+            weatherDescription += ' ※ 降雨機率為12小時預估值，僅供參考。';
+        }
 
         let icon = '☀️';
         if (mainCondition.includes('晴')) icon = '☀️';
