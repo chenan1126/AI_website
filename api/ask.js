@@ -203,7 +203,11 @@ async function enrichWithMapsData(tripData, cityLocation) {
         const nextSection = sectionsWithMaps[i+1];
         
         if (currentSection.day === nextSection.day && currentSection.location && nextSection.location) {
-            const promise = calculateRouteDistanceAndTimeSync(currentSection.location, nextSection.location)
+            // 使用Places API返回的地址，如果沒有地址則使用地點名稱
+            const originAddress = currentSection.maps_data?.address || currentSection.location;
+            const destAddress = nextSection.maps_data?.address || nextSection.location;
+            
+            const promise = calculateRouteDistanceAndTimeSync(originAddress, destAddress)
                 .then(routeData => {
                     if (!routeData.error) {
                         currentSection.travel_info = {

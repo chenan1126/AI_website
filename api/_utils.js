@@ -255,15 +255,24 @@ export async function calculateRouteDistanceAndTimeSync(origin, destination, mod
         directionsUrl.searchParams.append('mode', mode);
         directionsUrl.searchParams.append('key', GOOGLE_MAPS_API_KEY);
         directionsUrl.searchParams.append('language', 'zh-TW');
+        directionsUrl.searchParams.append('region', 'tw'); // 限制在台灣地區
 
         const response = await fetch(directionsUrl.toString());
         const data = await response.json();
 
+        console.log(`[Maps] API 回應狀態: ${data.status}`);
+        console.log(`[Maps] 請求 URL: ${directionsUrl.toString()}`);
+
         if (data.status !== 'OK' || !data.routes || data.routes.length === 0) {
             console.warn(`[Maps] 無法計算路線: ${origin} -> ${destination}`);
+            console.warn(`[Maps] API 詳細回應:`, data);
             return { error: `無法計算路線: ${origin} -> ${destination}` };
         }
+
         const leg = data.routes[0].legs[0];
+        console.log(`[Maps] 計算結果: ${leg.distance.text}, ${leg.duration.text}`);
+        console.log(`[Maps] 起點地址: ${leg.start_address}`);
+        console.log(`[Maps] 終點地址: ${leg.end_address}`);
 
         return {
             distance_text: leg.distance.text,
