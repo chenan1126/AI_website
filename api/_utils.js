@@ -66,6 +66,19 @@ const CITY_MAPPING = {
 // ============================================
 
 /**
+ * 標準化城市名稱，移除「市」、「縣」等後綴
+ * @param {string} cityName - 原始城市名稱
+ * @returns {string} 標準化後的城市名稱
+ */
+function normalizeCityName(cityName) {
+    if (!cityName) return cityName;
+    // 移除常見的行政區劃後綴
+    const normalized = cityName.replace(/[市縣]/g, '');
+    console.log(`[Weather] 城市名稱標準化: "${cityName}" -> "${normalized}"`);
+    return normalized;
+}
+
+/**
  * 異步獲取指定城市和日期範圍的天氣資訊（使用 timeFrom 和 timeTo）
  * @param {string} cityName - 城市中文名
  * @param {string} timeFrom - 開始時間 (YYYY-MM-DDTHH:mm:ss)
@@ -75,8 +88,10 @@ const CITY_MAPPING = {
 async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
     console.log(`[Weather API] 正在為城市「${cityName}」獲取 ${timeFrom} 到 ${timeTo} 的天氣...`);
     try {
-        const datasetId = CITY_MAPPING[cityName] || "F-D0047-063";
-        console.log(`[Weather API] 使用 datasetId: ${datasetId}`);
+        // 標準化城市名稱（移除「市」、「縣」後綴）
+        const normalizedCity = normalizeCityName(cityName);
+        const datasetId = CITY_MAPPING[normalizedCity] || CITY_MAPPING[cityName] || "F-D0047-063";
+        console.log(`[Weather API] 使用 datasetId: ${datasetId} (原始: ${cityName}, 標準化: ${normalizedCity})`);
         
         const url = new URL(`https://opendata.cwa.gov.tw/api/v1/rest/datastore/${datasetId}`);
         url.searchParams.append('Authorization', CWA_AUTH);
@@ -108,32 +123,7 @@ async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
     }
 }
 
-/**
- * 異步獲取指定城市和日期的天氣資訊
- * @param {string} cityName - 城市中文名
- * @param {string} [date] - 日期字串 (YYYY-MM-DD)，可選
- * @returns {Promise<object>} 天氣資訊物件或錯誤物件
- */
-async function getWeatherSync(cityName, date) {
-    console.log(`[Weather] 正在為城市「${cityName}」的日期「${date}」獲取天氣...`);
-    try {
-        // 使用 timeFrom 和 timeTo 來獲取特定日期的天氣
-        const timeFrom = `${date}T00:00:00`;
-        const timeTo = `${date}T23:59:59`;
-        
-        const data = await getWeatherRangeSync(cityName, timeFrom, timeTo);
-        
-        if (data.error) {
-            return data;
-        }
 
-        return getWeatherForDateFromForecast(data, date);
-
-    } catch (e) {
-        console.error(`獲取天氣資訊時發生錯誤: ${e.message}`);
-        return { error: `獲取天氣資訊失敗: ${e.message}` };
-    }
-}
 
 /**
  * 從預報數據中提取指定日期的天氣資訊
