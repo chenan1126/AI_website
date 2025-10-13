@@ -136,11 +136,7 @@ function TripResults({ data }) {
                 borderRadius: '4px'
               }}>
                 <div style={{ fontWeight: 'bold', color: '#1565c0', marginBottom: '5px' }}>
-                  <i className="fas fa-route"></i> 前往下一個地點
-                </div>
-                <div style={{ fontSize: '14px', color: '#424242' }}>
-                  <i className="fas fa-arrow-right" style={{ marginRight: '5px', color: '#4caf50' }}></i>
-                  <strong>{section.travel_info.to}</strong>
+                  <i className="fas fa-route"></i> {section.travel_info.from} → {section.travel_info.to}
                 </div>
                 <div style={{ display: 'flex', gap: '15px', marginTop: '8px', fontSize: '13px' }}>
                   <span><i className="fas fa-road" style={{ color: '#ff9800', marginRight: '5px' }}></i>距離: <strong>{section.travel_info.distance}</strong></span>
