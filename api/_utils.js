@@ -46,13 +46,26 @@ const CWA_AUTH = process.env.CWA_API_KEY || 'CWA-F3FCE1AF-CFF8-4531-86AD-379B18F
 
 // 城市名稱到天氣資料集 ID 的映射
 const CITY_MAPPING = {
-    "台北": "F-D0047-061", "台中": "F-D0047-071", "台南": "F-D0047-075",
-    "高雄": "F-D0047-063", "新北": "F-D0047-069", "桃園": "F-D0047-007",
-    "新竹": "F-D0047-053", "苗栗": "F-D0047-035", "彰化": "F-D0047-017",
-    "南投": "F-D0047-047", "雲林": "F-D0047-081", "嘉義": "F-D0047-011",
-    "屏東": "F-D0047-029", "宜蘭": "F-D0047-003", "花蓮": "F-D0047-021",
-    "台東": "F-D0047-025", "澎湖": "F-D0047-039", "金門": "F-D0047-033",
-    "連江": "F-D0047-073", "基隆": "F-D0047-051",
+    "台北": "F-D0047-061", "台北市": "F-D0047-061",
+    "台中": "F-D0047-071", "台中市": "F-D0047-071",
+    "台南": "F-D0047-075", "台南市": "F-D0047-075",
+    "高雄": "F-D0047-063", "高雄市": "F-D0047-063",
+    "新北": "F-D0047-069", "新北市": "F-D0047-069",
+    "桃園": "F-D0047-007", "桃園市": "F-D0047-007",
+    "新竹市": "F-D0047-053", "新竹縣": "F-D0047-009", "新竹": "F-D0047-053",
+    "苗栗": "F-D0047-035", "苗栗縣": "F-D0047-035",
+    "彰化": "F-D0047-017", "彰化縣": "F-D0047-017",
+    "南投": "F-D0047-047", "南投縣": "F-D0047-047",
+    "雲林": "F-D0047-081", "雲林縣": "F-D0047-081",
+    "嘉義市": "F-D0047-015", "嘉義縣": "F-D0047-011", "嘉義": "F-D0047-015",
+    "屏東": "F-D0047-029", "屏東縣": "F-D0047-029",
+    "宜蘭": "F-D0047-003", "宜蘭縣": "F-D0047-003",
+    "花蓮": "F-D0047-021", "花蓮縣": "F-D0047-021",
+    "台東": "F-D0047-025", "台東縣": "F-D0047-025",
+    "澎湖": "F-D0047-039", "澎湖縣": "F-D0047-039",
+    "金門": "F-D0047-033", "金門縣": "F-D0047-033",
+    "連江": "F-D0047-073", "連江縣": "F-D0047-073",
+    "基隆": "F-D0047-051", "基隆市": "F-D0047-051",
 };
 
 // ============================================
@@ -66,21 +79,8 @@ const CITY_MAPPING = {
 // ============================================
 
 /**
- * 標準化城市名稱，移除「市」、「縣」等後綴
- * @param {string} cityName - 原始城市名稱
- * @returns {string} 標準化後的城市名稱
- */
-function normalizeCityName(cityName) {
-    if (!cityName) return cityName;
-    // 移除常見的行政區劃後綴
-    const normalized = cityName.replace(/[市縣]/g, '');
-    console.log(`[Weather] 城市名稱標準化: "${cityName}" -> "${normalized}"`);
-    return normalized;
-}
-
-/**
  * 異步獲取指定城市和日期範圍的天氣資訊（使用 timeFrom 和 timeTo）
- * @param {string} cityName - 城市中文名
+ * @param {string} cityName - 城市中文名（可含市/縣）
  * @param {string} timeFrom - 開始時間 (YYYY-MM-DDTHH:mm:ss)
  * @param {string} timeTo - 結束時間 (YYYY-MM-DDTHH:mm:ss)
  * @returns {Promise<object>} 天氣資訊物件或錯誤物件
@@ -88,10 +88,9 @@ function normalizeCityName(cityName) {
 async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
     console.log(`[Weather API] 正在為城市「${cityName}」獲取 ${timeFrom} 到 ${timeTo} 的天氣...`);
     try {
-        // 標準化城市名稱（移除「市」、「縣」後綴）
-        const normalizedCity = normalizeCityName(cityName);
-        const datasetId = CITY_MAPPING[normalizedCity] || CITY_MAPPING[cityName] || "F-D0047-063";
-        console.log(`[Weather API] 使用 datasetId: ${datasetId} (原始: ${cityName}, 標準化: ${normalizedCity})`);
+        // 直接使用城市名稱查找，支援完整名稱（如「新竹市」、「新竹縣」）
+        const datasetId = CITY_MAPPING[cityName] || "F-D0047-063";
+        console.log(`[Weather API] 城市: ${cityName}, 使用 datasetId: ${datasetId}`);
         
         const url = new URL(`https://opendata.cwa.gov.tw/api/v1/rest/datastore/${datasetId}`);
         url.searchParams.append('Authorization', CWA_AUTH);
