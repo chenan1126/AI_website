@@ -221,17 +221,25 @@ export async function getMultiDayWeatherSync(cityName, dates) {
     if (!dates || dates.length === 0) {
         return {};
     }
+    console.log(`[Weather] Fetching weather for ${cityName}, dates:`, dates);
     const weatherPromises = dates.map(date => getWeatherSync(cityName, date));
     const results = await Promise.all(weatherPromises);
+    
+    console.log('[Weather] Results from API:', results);
     
     const weatherData = {};
     dates.forEach((date, index) => {
         // 只添加有有效數據的結果，忽略錯誤
         if (results[index] && !results[index].error) {
             weatherData[date] = results[index];
+            console.log(`[Weather] Added data for ${date}:`, results[index]);
+        } else {
+            console.log(`[Weather] No valid data for ${date}:`, results[index]);
         }
         // 如果沒有數據，weatherData[date] 會是 undefined，這是正常的
     });
+    
+    console.log('[Weather] Final weather data object:', weatherData);
     return weatherData;
 }
 

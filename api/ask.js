@@ -334,7 +334,10 @@ export default async function handler(req, res) {
         // 2. 獲取天氣資訊
         sendSseEvent(res, 'weather', { status: 'fetching' });
         const weatherData = await getMultiDayWeatherSync(cityForWeather, tripDates);
+        console.log('[API] Weather data from CWA:', weatherData);
+        console.log('[API] Trip dates:', tripDates);
         const weatherArray = tripDates.map(date => ({ date, weather: weatherData[date] || null }));
+        console.log('[API] Weather array to send:', weatherArray);
         sendSseEvent(res, 'weather', { status: 'complete', data: weatherArray });
 
         // 3. 建立增強版提示
