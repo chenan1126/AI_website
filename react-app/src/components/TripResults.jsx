@@ -5,6 +5,7 @@ import MapView from './MapView';
 function TripResults({ data }) {
   const [dayIndices, setDayIndices] = React.useState({});
   const [selectedItinerary, setSelectedItinerary] = React.useState(null);
+  const [selectedDay, setSelectedDay] = React.useState(1); // 新增：當前選擇的天數
 
   if (!data || !data.itineraries) {
     return null;
@@ -12,10 +13,12 @@ function TripResults({ data }) {
 
   const handleItinerarySelect = (index) => {
     setSelectedItinerary(index);
+    setSelectedDay(1); // 選擇行程時重置為第1天
   };
 
   const handleResetSelection = () => {
     setSelectedItinerary(null);
+    setSelectedDay(1);
   };
 
   // 渲染單個景點（統一高度）
@@ -265,37 +268,6 @@ function TripResults({ data }) {
         <div className="trip-title-section" style={{ marginBottom: '20px' }}>
           <h2 style={{ color: '#1e293b', marginBottom: '15px', fontWeight: '600' }}>
             {itinerary.title || `行程方案 ${index + 1}`}
-            {itinerary.useRAG !== undefined && (
-              <span style={{
-                marginLeft: '12px',
-                background: itinerary.useRAG 
-                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
-                  : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                color: 'white',
-                padding: '6px 14px',
-                borderRadius: '20px',
-                fontSize: '13px',
-                fontWeight: '600',
-                boxShadow: itinerary.useRAG 
-                  ? '0 2px 8px rgba(16, 185, 129, 0.3)' 
-                  : '0 2px 8px rgba(139, 92, 246, 0.3)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                {itinerary.useRAG ? (
-                  <>
-                    <i className="fas fa-database"></i>
-                    RAG 增強版
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-robot"></i>
-                    純 AI 生成
-                  </>
-                )}
-              </span>
-            )}
             {isSelectionMode && (
               <span style={{
                 display: 'inline-block',
@@ -420,7 +392,11 @@ function TripResults({ data }) {
                 e.currentTarget.style.color = '#6366f1';
                 e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
               }}
-              onClick={() => setDayIndices(prev => ({...prev, [index]: Math.max((prev[index] || 0) - 1, 0)}))}
+              onClick={() => {
+                const newDayIndex = Math.max((dayIndices[index] || 0) - 1, 0);
+                setDayIndices(prev => ({...prev, [index]: newDayIndex}));
+                setSelectedDay(parseInt(days[newDayIndex]) || 1);
+              }}
               disabled={(dayIndices[index] || 0) === 0}
             >上一天</button>
             <span style={{
@@ -456,7 +432,11 @@ function TripResults({ data }) {
                 e.currentTarget.style.color = '#6366f1';
                 e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
               }}
-              onClick={() => setDayIndices(prev => ({...prev, [index]: Math.min((prev[index] || 0) + 1, days.length - 1)}))}
+              onClick={() => {
+                const newDayIndex = Math.min((dayIndices[index] || 0) + 1, days.length - 1);
+                setDayIndices(prev => ({...prev, [index]: newDayIndex}));
+                setSelectedDay(parseInt(days[newDayIndex]) || 1);
+              }}
               disabled={(dayIndices[index] || 0) === days.length - 1}
             >下一天</button>
           </div>
@@ -473,20 +453,7 @@ function TripResults({ data }) {
 
   return (
     <div className="response-wrapper">
-      {/* 地圖視圖 - 只在選擇了具體方案後才顯示 */}
-      {selectedItinerary !== null && data.itineraries && data.itineraries.length > 0 && (
-        <div style={{ 
-          marginBottom: '30px', 
-          height: '500px',
-          borderRadius: '12px',
-          overflow: 'hidden',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-        }}>
-          <MapView itineraries={[data.itineraries[selectedItinerary]]} />
-        </div>
-      )}
-
-      {/* 顯示天氣卡片 - 只顯示一次 */}
+      {/* 顯示天氣卡片 - 在最上方 */}
       {data.weather_data && data.weather_data.length > 0 && (
         <div style={{ marginBottom: '30px' }}>
           <WeatherCard
@@ -497,6 +464,55 @@ function TripResults({ data }) {
           />
         </div>
       )}
+
+      {/* 地圖視圖 - 只在選擇了具體方案後才顯示 */}
+      {selectedItinerary !== null && data.itineraries && data.itineraries.length > 0 && (() => {
+        const selectedItineraryData = data.itineraries[selectedItinerary];
+        const sections = selectedItineraryData.sections || [];
+        
+        // 計算總天數
+        const totalDays = Math.max(...sections.map(s => s.day || 1));
+        
+        // 過濾出當前選擇天數的景點
+        const dayData = {
+          ...selectedItineraryData,
+          sections: sections.filter(s => (s.day || 1) === selectedDay)
+        };
+        
+        return (
+          <div style={{ marginBottom: '30px' }}>
+            {/* 地圖容器 */}
+            <div style={{ 
+              height: '500px',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              position: 'relative'
+            }}>
+              <MapView itineraries={[dayData]} />
+              
+              {/* 顯示當前天數標籤 */}
+              {totalDays > 1 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '15px',
+                  right: '15px',
+                  background: 'rgba(99, 102, 241, 0.9)',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  zIndex: 1000
+                }}>
+                  第 {selectedDay} 天行程
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
       
       {data.itineraries.length > 1 && selectedItinerary === null && (
         <div style={{ textAlign: 'center', marginBottom: '20px', padding: '20px', background: '#f8fafc', borderRadius: '8px' }}>
