@@ -1,245 +1,217 @@
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import React, { useMemo } from 'react';
+import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react-google-maps';
 
-// 修復 Leaflet 預設圖標問題
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
+const MapView = ({ itineraries }) => {
+  const [selectedMarker, setSelectedMarker] = React.useState(null);
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-// 自定義不同顏色的標記圖標
-const createColoredIcon = (color) => {
-  return L.divIcon({
-    className: 'custom-marker',
-    html: `<div style="
-      background-color: ${color};
-      width: 25px;
-      height: 25px;
-      border-radius: 50% 50% 50% 0;
-      border: 3px solid white;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-      transform: rotate(-45deg);
-      position: relative;
-    ">
-      <div style="
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) rotate(45deg);
-        color: white;
-        font-weight: bold;
-        font-size: 12px;
-      "></div>
-    </div>`,
-    iconSize: [25, 25],
-    iconAnchor: [12, 24],
-    popupAnchor: [0, -24],
-  });
-};
-
-// 每日不同顏色
-const dayColors = [
-  '#FF6B6B', // 紅色 - Day 1
-  '#4ECDC4', // 青綠色 - Day 2
-  '#45B7D1', // 藍色 - Day 3
-  '#FFA07A', // 橙色 - Day 4
-  '#98D8C8', // 薄荷綠 - Day 5
-  '#F7DC6F', // 黃色 - Day 6
-  '#BB8FCE', // 紫色 - Day 7
-];
-
-// 地圖適應邊界的組件
-function MapBounds({ locations }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (locations && locations.length > 0) {
-      const validLocations = locations.filter(loc => 
-        loc.coordinates && 
-        typeof loc.coordinates.lat === 'number' && 
-        typeof loc.coordinates.lng === 'number' &&
-        !isNaN(loc.coordinates.lat) &&
-        !isNaN(loc.coordinates.lng)
-      );
-
-      if (validLocations.length > 0) {
-        const bounds = L.latLngBounds(
-          validLocations.map(loc => [loc.coordinates.lat, loc.coordinates.lng])
-        );
-        map.fitBounds(bounds, { padding: [50, 50] });
-      }
-    }
-  }, [locations, map]);
-
-  return null;
-}
-
-export default function MapView({ itinerary, hoveredLocation, onLocationHover }) {
-  // 從行程中提取所有有效的地點和坐標
-  const getAllLocations = () => {
-    if (!itinerary || !Array.isArray(itinerary)) return [];
-
-    const locations = [];
-    itinerary.forEach((day, dayIndex) => {
-      if (day.activities && Array.isArray(day.activities)) {
-        day.activities.forEach((activity) => {
-          if (activity.location && activity.location.coordinates) {
-            const coords = activity.location.coordinates;
-            if (coords.lat && coords.lng && 
-                !isNaN(coords.lat) && !isNaN(coords.lng)) {
-              locations.push({
-                ...activity.location,
-                dayIndex,
-                activityName: activity.name || activity.location.name,
-                time: activity.time,
-              });
-            }
+  // 從行程中提取所有地點
+  const locations = useMemo(() => {
+    if (!itineraries || itineraries.length === 0) return [];
+    
+    const allLocations = [];
+    itineraries.forEach((itinerary, dayIndex) => {
+      if (itinerary.activities) {
+        itinerary.activities.forEach((activity, actIndex) => {
+          if (activity.location && activity.coordinates) {
+            allLocations.push({
+              ...activity,
+              dayIndex,
+              actIndex,
+              position: {
+                lat: activity.coordinates.lat,
+                lng: activity.coordinates.lng
+              }
+            });
           }
         });
       }
     });
-    return locations;
-  };
+    return allLocations;
+  }, [itineraries]);
 
-  // 獲取每日的路線（用於繪製折線）
-  const getDayRoutes = () => {
-    if (!itinerary || !Array.isArray(itinerary)) return [];
+  // 計算地圖中心點（所有地點的平均位置）
+  const center = useMemo(() => {
+    if (locations.length === 0) {
+      return { lat: 25.0330, lng: 121.5654 }; // 台北 101 預設
+    }
+    
+    const avgLat = locations.reduce((sum, loc) => sum + loc.position.lat, 0) / locations.length;
+    const avgLng = locations.reduce((sum, loc) => sum + loc.position.lng, 0) / locations.length;
+    
+    return { lat: avgLat, lng: avgLng };
+  }, [locations]);
 
-    return itinerary.map((day, dayIndex) => {
-      if (!day.activities || !Array.isArray(day.activities)) return [];
+  // 顏色對應每一天
+  const dayColors = [
+    '#6366f1', // 紫藍
+    '#ec4899', // 粉紅
+    '#f59e0b', // 橘色
+    '#10b981', // 綠色
+    '#8b5cf6', // 紫色
+    '#06b6d4', // 青色
+    '#ef4444', // 紅色
+  ];
 
-      const route = day.activities
-        .filter(activity => 
-          activity.location && 
-          activity.location.coordinates &&
-          activity.location.coordinates.lat &&
-          activity.location.coordinates.lng &&
-          !isNaN(activity.location.coordinates.lat) &&
-          !isNaN(activity.location.coordinates.lng)
-        )
-        .map(activity => [
-          activity.location.coordinates.lat,
-          activity.location.coordinates.lng
-        ]);
-
-      return {
-        dayIndex,
-        route,
-        color: dayColors[dayIndex % dayColors.length]
-      };
-    }).filter(day => day.route && day.route.length > 0);
-  };
-
-  const locations = getAllLocations();
-  const dayRoutes = getDayRoutes();
-
-  // 如果沒有有效地點，顯示提示
-  if (locations.length === 0) {
+  if (!apiKey) {
     return (
-      <div style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
+      <div style={{ 
+        height: '100%', 
+        display: 'flex', 
+        alignItems: 'center', 
         justifyContent: 'center',
-        backgroundColor: '#f0f0f0',
-        color: '#666',
-        fontSize: '16px',
+        background: '#f3f4f6',
+        borderRadius: '12px'
       }}>
-        🗺️ 等待行程生成中...
+        <p style={{ color: '#6b7280' }}>❌ Google Maps API Key 未設定</p>
       </div>
     );
   }
 
-  // 計算地圖中心點（所有地點的平均位置）
-  const center = [
-    locations.reduce((sum, loc) => sum + loc.coordinates.lat, 0) / locations.length,
-    locations.reduce((sum, loc) => sum + loc.coordinates.lng, 0) / locations.length,
-  ];
+  if (locations.length === 0) {
+    return (
+      <div style={{ 
+        height: '100%', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: '#f3f4f6',
+        borderRadius: '12px'
+      }}>
+        <p style={{ color: '#6b7280' }}>🗺️ 沒有可顯示的地點</p>
+      </div>
+    );
+  }
 
   return (
-    <MapContainer
-      center={center}
-      zoom={13}
-      style={{ width: '100%', height: '100%' }}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+    <div style={{ height: '100%', width: '100%', borderRadius: '12px', overflow: 'hidden' }}>
+      <APIProvider apiKey={apiKey}>
+        <Map
+          defaultCenter={center}
+          defaultZoom={12}
+          mapId="trip-planner-map"
+          gestureHandling="greedy"
+          disableDefaultUI={false}
+          style={{ width: '100%', height: '100%' }}
+        >
+          {/* 渲染所有標記 */}
+          {locations.map((location, index) => {
+            const color = dayColors[location.dayIndex % dayColors.length];
+            
+            return (
+              <AdvancedMarker
+                key={`${location.dayIndex}-${location.actIndex}`}
+                position={location.position}
+                onClick={() => setSelectedMarker(index)}
+              >
+                <Pin
+                  background={color}
+                  borderColor="#fff"
+                  glyphColor="#fff"
+                >
+                  <div style={{ 
+                    fontSize: '14px', 
+                    fontWeight: 'bold',
+                    color: '#fff'
+                  }}>
+                    {location.actIndex + 1}
+                  </div>
+                </Pin>
+              </AdvancedMarker>
+            );
+          })}
 
-      {/* 自動調整地圖邊界 */}
-      <MapBounds locations={locations} />
-
-      {/* 繪製每日路線 */}
-      {dayRoutes.map((dayRoute, index) => (
-        <Polyline
-          key={`route-${index}`}
-          positions={dayRoute.route}
-          color={dayRoute.color}
-          weight={3}
-          opacity={0.6}
-        />
-      ))}
-
-      {/* 顯示所有地點標記 */}
-      {locations.map((location, index) => {
-        const isHovered = hoveredLocation && 
-          hoveredLocation.name === location.name &&
-          hoveredLocation.dayIndex === location.dayIndex;
-        
-        return (
-          <Marker
-            key={`marker-${index}`}
-            position={[location.coordinates.lat, location.coordinates.lng]}
-            icon={createColoredIcon(dayColors[location.dayIndex % dayColors.length])}
-            eventHandlers={{
-              mouseover: () => {
-                if (onLocationHover) {
-                  onLocationHover(location);
-                }
-              },
-              mouseout: () => {
-                if (onLocationHover) {
-                  onLocationHover(null);
-                }
-              },
-            }}
-            opacity={isHovered ? 1 : 0.8}
-            zIndexOffset={isHovered ? 1000 : 0}
-          >
-            <Popup>
-              <div style={{ minWidth: '200px' }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', color: dayColors[location.dayIndex % dayColors.length] }}>
-                  📍 {location.name}
+          {/* InfoWindow - 點擊標記時顯示詳細資訊 */}
+          {selectedMarker !== null && (
+            <InfoWindow
+              position={locations[selectedMarker].position}
+              onCloseClick={() => setSelectedMarker(null)}
+            >
+              <div style={{ padding: '10px', maxWidth: '250px' }}>
+                <h3 style={{ 
+                  margin: '0 0 8px 0', 
+                  fontSize: '16px',
+                  color: '#1f2937',
+                  fontWeight: '600'
+                }}>
+                  {locations[selectedMarker].location}
                 </h3>
-                {location.activityName && location.activityName !== location.name && (
-                  <p style={{ margin: '4px 0', fontSize: '14px' }}>
-                    <strong>{location.activityName}</strong>
-                  </p>
+                <div style={{ 
+                  fontSize: '13px', 
+                  color: '#6b7280',
+                  marginBottom: '8px'
+                }}>
+                  <strong>時間：</strong>{locations[selectedMarker].time || '未指定'}
+                </div>
+                {locations[selectedMarker].description && (
+                  <div style={{ 
+                    fontSize: '13px', 
+                    color: '#4b5563',
+                    lineHeight: '1.5'
+                  }}>
+                    {locations[selectedMarker].description}
+                  </div>
                 )}
-                {location.time && (
-                  <p style={{ margin: '4px 0', fontSize: '13px', color: '#666' }}>
-                    ⏰ {location.time}
-                  </p>
-                )}
-                <p style={{ margin: '4px 0', fontSize: '13px', color: '#888' }}>
-                  🗓️ Day {location.dayIndex + 1}
-                </p>
-                {location.address && (
-                  <p style={{ margin: '4px 0', fontSize: '12px', color: '#999' }}>
-                    📮 {location.address}
-                  </p>
+                {locations[selectedMarker].maps_data?.rating && (
+                  <div style={{ 
+                    marginTop: '8px',
+                    padding: '6px 10px',
+                    background: '#fef3c7',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    color: '#92400e'
+                  }}>
+                    ⭐ {locations[selectedMarker].maps_data.rating.toFixed(1)} / 5.0
+                  </div>
                 )}
               </div>
-            </Popup>
-          </Marker>
-        );
-      })}
-    </MapContainer>
+            </InfoWindow>
+          )}
+        </Map>
+      </APIProvider>
+
+      {/* 圖例 */}
+      <div style={{
+        position: 'absolute',
+        bottom: '20px',
+        left: '20px',
+        background: 'white',
+        padding: '12px 16px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        zIndex: 1000
+      }}>
+        <div style={{ 
+          fontSize: '13px', 
+          fontWeight: '600', 
+          marginBottom: '8px',
+          color: '#1f2937'
+        }}>
+          行程天數
+        </div>
+        {itineraries.map((itinerary, index) => (
+          <div key={index} style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            marginBottom: '4px'
+          }}>
+            <div style={{
+              width: '16px',
+              height: '16px',
+              borderRadius: '50%',
+              background: dayColors[index % dayColors.length],
+              border: '2px solid white',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+            }}></div>
+            <span style={{ fontSize: '12px', color: '#4b5563' }}>
+              {itinerary.day || `第 ${index + 1} 天`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
-}
+};
+
+export default MapView;

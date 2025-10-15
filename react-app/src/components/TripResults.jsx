@@ -1,18 +1,14 @@
 import React from 'react';
 import WeatherCard from './WeatherCard';
+import MapView from './MapView';
 
-function TripResults({ data, selectedIndex = null, onLocationHover }) {
+function TripResults({ data }) {
   const [dayIndices, setDayIndices] = React.useState({});
   const [selectedItinerary, setSelectedItinerary] = React.useState(null);
 
   if (!data || !data.itineraries) {
     return null;
   }
-
-  // 如果提供了 selectedIndex，則只顯示該行程
-  const displayItineraries = selectedIndex !== null 
-    ? [data.itineraries[selectedIndex]]
-    : data.itineraries;
 
   const handleItinerarySelect = (index) => {
     setSelectedItinerary(index);
@@ -477,6 +473,22 @@ function TripResults({ data, selectedIndex = null, onLocationHover }) {
 
   return (
     <div className="response-wrapper">
+      {/* 地圖視圖 */}
+      {data.itineraries && data.itineraries.length > 0 && (
+        <div style={{ 
+          marginBottom: '30px', 
+          height: '500px',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+        }}>
+          <MapView itineraries={selectedItinerary !== null 
+            ? [data.itineraries[selectedItinerary]] 
+            : data.itineraries} 
+          />
+        </div>
+      )}
+
       {/* 顯示天氣卡片 - 只顯示一次 */}
       {data.weather_data && data.weather_data.length > 0 && (
         <div style={{ marginBottom: '30px' }}>
