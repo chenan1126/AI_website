@@ -6,46 +6,226 @@
 
 ### **開發階段規劃 (Phased Rollout)**
 
-| 階段 | 優先級 | 核心功能 | 狀態 |
-| :--- | :--- | :--- | :--- |
-| **第一階段** | ✅ **已完成 (Done)** | 1. **RAG 向量資料庫系統 (Supabase + Gemini Embeddings)** | ✅ 已完成！建立了 11,078+ 台灣景點資料庫，使用 Gemini Embeddings，支援語意搜尋與雙模式生成（純 AI vs RAG）。 |
-| **第二階段** | 🚀 **進行中 (In Progress)** | 2. **視覺化路線地圖**<br>3. 預算規劃與成本估算 | **當前目標**：實作互動式地圖顯示行程路線與景點位置，提升用戶體驗。 |
-| **第三階段** | 🎯 **下一步 (Next)** | 4. **核心使用者認證 (Core User Authentication)** | **建立使用者系統地基**，讓應用程式具備身份識別能力，為儲存歷史行程做準備。 |
-| **第四階段** | ✨ **未來目標 (Future)** | 5. 協同規劃<br>6. AI 旅行日誌生成 | 從個人工具擴展至社交應用，並將服務生命週期延伸至旅程結束後。 |
+| 階段 | 優先級 | 核心功能 | 狀態 | 目標 |
+| :--- | :--- | :--- | :--- | :--- |
+| **第一階段** | 🚀 **立刻開始 (Now)** | 1. **RAG 向量資料庫系統 (Supabase + Gemini)**<br>2. 視覺化路線地圖 (Google Maps)<br>3. 預算規劃與成本估算 | ✅ **已完成** | **提升 AI 準確性**，建立台灣旅遊景點知識庫，消除 LLM 幻覺問題。 |
+| **第二階段** | 🎯 **下一步 (Next)** | 4. **核心使用者認證 (Core User Authentication)** | 🔄 **進行中** | **建立使用者系統地基**，讓應用程式具備身份識別能力。 |
+| **第三階段** | ✨ **未來目標 (Future)** | 5. 協同規劃<br>6. AI 旅行日誌生成 | ⏳ **待開發** | 從個人工具擴展至社交應用，並將服務生命週期延伸至旅程結束後。 |
 
 -----
 
 ## **2. 功能詳解 (Feature Specifications)**
 
-### **✅ F-01: RAG 向量資料庫系統 (已完成 - Completed)**
+### **✅ F-01: RAG 向量資料庫系統 (已完成 - Supabase + Gemini Embeddings)**
+
+  * **狀態**: ✅ **已完成並部署** (2025-01-16)
+  
+  * **實作成果**:
+      * ✅ Supabase pgvector 向量資料庫
+      * ✅ 11,078 筆真實景點資料 (tourist_attractions)
+      * ✅ 2,500+ 筆餐廳資料 (restaurants)
+      * ✅ Gemini text-embedding-004 向量化 (768 維度)
+      * ✅ 雙模式生成：純 AI vs RAG 增強
+      * ✅ 語意搜尋與相似度匹配
+      * ✅ Google Maps 整合 (評分、評論數、營業狀態)
+  
+  * **技術文檔**:
+      * 📄 [RAG_INTEGRATION_COMPLETE.md](./RAG_INTEGRATION_COMPLETE.md) - 整合完成報告
+      * 📄 [RAG_SUMMARY.md](./RAG_SUMMARY.md) - 技術總結
+      * 📄 [RAG_VS_AI_COMPARISON.md](./RAG_VS_AI_COMPARISON.md) - 性能比較
+      * 📄 [QUICK_START_RAG.md](./QUICK_START_RAG.md) - 快速入門指南
 
   * **使用者故事 (User Story):**
 
     > 作為一位使用者，我希望 AI 推薦的景點都是真實存在且準確的台灣景點，不會出現虛構或錯誤的地點名稱，也不會推薦已經歇業的店家。
 
-  * **實作成果 (Implementation Results):**
+  * **為什麼需要 RAG？**
 
-      * ✅ **資料庫完成：** 建立了 Supabase pgvector 資料庫，包含 11,078+ 筆台灣真實景點資料
-      * ✅ **向量化完成：** 使用 Google Gemini Embeddings API (`text-embedding-004`) 生成 768 維向量
-      * ✅ **RAG 整合完成：** 整合到 `api/ask.js`，支援語意搜尋與智能景點匹配
-      * ✅ **雙模式生成：** 實作「純 AI」vs「RAG 增強」雙模式，讓使用者可以比較差異
-      * ✅ **城市變體處理：** 解決台/臺、台北/臺北等城市名稱變體問題
-      * ✅ **資料清理：** 修正景點名稱中的底線、空格等格式問題
+      * **問題現狀：** LLM（如 Gemini）會產生「幻覺」，推薦不存在的景點或已歇業的店家。
+      * **解決方案：** 使用 RAG（檢索增強生成）技術，讓 AI 從真實的景點資料庫中檢索資訊，而非憑空想像。
+      * **技術選擇：** Supabase pgvector + Gemini Embeddings，成本低、易整合、支援向量搜尋。
 
-  * **技術架構：**
+  * **技術分解 (Technical Breakdown):**
 
-      * **資料庫：** Supabase PostgreSQL + pgvector 擴展
-      * **向量模型：** Google Gemini `text-embedding-004` (768 dimensions)
-      * **搜尋函數：** `match_attractions_by_city()` - 支援城市過濾的向量相似度搜尋
-      * **資料來源：** 政府開放資料平台的台灣景點與餐廳資料
-      * **匯入工具：** `scripts/import_data_to_supabase.js` - 支援景點與餐廳批次匯入
+      * **資料庫 (Supabase):**
+          * **[任務]** 在 Supabase 啟用 `pgvector` 擴展功能。
+          * **[任務]** 建立 `tourist_attractions` 資料表：
+            ```sql
+            CREATE TABLE tourist_attractions (
+              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              name TEXT NOT NULL,
+              category TEXT, -- 景點類型（自然景觀、文化古蹟、美食等）
+              city TEXT NOT NULL, -- 縣市
+              district TEXT, -- 區域
+              address TEXT,
+              description TEXT, -- 景點描述
+              features JSONB, -- 特色標籤（適合親子、網美景點等）
+              google_place_id TEXT, -- Google Place ID
+              rating NUMERIC,
+              price_level INTEGER,
+              business_status TEXT, -- 營業狀態
+              embedding VECTOR(1536), -- 向量嵌入（OpenAI text-embedding-3-small）
+              metadata JSONB, -- 其他元資料
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            
+            CREATE INDEX ON tourist_attractions USING ivfflat (embedding vector_cosine_ops);
+            ```
+          * **[任務]** 建立 `match_attractions` 函數用於向量相似度搜尋：
+            ```sql
+            CREATE OR REPLACE FUNCTION match_attractions(
+              query_embedding VECTOR(1536),
+              match_threshold FLOAT,
+              match_count INT,
+              filter_city TEXT DEFAULT NULL
+            )
+            RETURNS TABLE (
+              id UUID,
+              name TEXT,
+              category TEXT,
+              city TEXT,
+              address TEXT,
+              description TEXT,
+              similarity FLOAT
+            )
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+              RETURN QUERY
+              SELECT
+                t.id,
+                t.name,
+                t.category,
+                t.city,
+                t.address,
+                t.description,
+                1 - (t.embedding <=> query_embedding) AS similarity
+              FROM tourist_attractions t
+              WHERE (filter_city IS NULL OR t.city = filter_city)
+                AND 1 - (t.embedding <=> query_embedding) > match_threshold
+              ORDER BY t.embedding <=> query_embedding
+              LIMIT match_count;
+            END;
+            $$;
+            ```
 
-  * **成功指標 (已達成):**
+      * **資料收集與向量化：**
+          * **[任務]** 建立資料收集腳本 `scripts/collect_attractions.js`：
+              * 從 Google Places API 收集台灣各縣市的熱門景點資料。
+              * 從政府開放資料平台（data.gov.tw）匯入觀光景點資料。
+              * 整合交通部觀光署的景點資料。
+          * **[任務]** 建立向量化腳本 `scripts/create_embeddings.js`：
+              * 使用 OpenAI Embeddings API（`text-embedding-3-small`）生成向量。
+              * 將景點名稱 + 描述 + 特色組合成文本進行向量化。
+              * 批次寫入 Supabase。
 
-      * ✅ 虛構景點比例：從 20-30% 降至 < 5%
-      * ✅ 資料覆蓋：11,078+ 個真實台灣景點
-      * ✅ 回應速度：RAG 檢索延遲 < 500ms
-      * ✅ 用戶體驗：雙模式讓使用者可以直接比較 RAG 的效果
+      * **後端 (LangChain Integration):**
+          * **[任務]** 安裝必要套件：
+            ```bash
+            npm install langchain @langchain/community @langchain/openai @supabase/supabase-js
+            ```
+          * **[任務]** 建立 `api/utils/ragRetriever.js`：
+            ```javascript
+            import { createClient } from '@supabase/supabase-js';
+            import { OpenAIEmbeddings } from '@langchain/openai';
+            import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
+
+            const supabase = createClient(
+              process.env.SUPABASE_URL,
+              process.env.SUPABASE_SERVICE_KEY
+            );
+
+            const embeddings = new OpenAIEmbeddings({
+              openAIApiKey: process.env.OPENAI_API_KEY,
+              modelName: 'text-embedding-3-small'
+            });
+
+            const vectorStore = new SupabaseVectorStore(embeddings, {
+              client: supabase,
+              tableName: 'tourist_attractions',
+              queryName: 'match_attractions'
+            });
+
+            export async function retrieveRelevantAttractions(query, city, limit = 10) {
+              const retriever = vectorStore.asRetriever({
+                k: limit,
+                filter: city ? { city } : undefined
+              });
+              
+              const docs = await retriever.getRelevantDocuments(query);
+              return docs.map(doc => doc.pageContent);
+            }
+            ```
+          * **[任務]** 修改 `api/ask.js` 的 `buildPrompt` 函數：
+            ```javascript
+            async function buildPrompt(question, location, days, dates, weatherData) {
+              // 使用 RAG 檢索相關景點
+              const relevantAttractions = await retrieveRelevantAttractions(
+                `${question} ${location}`,
+                location,
+                20 // 檢索前 20 個相關景點
+              );
+
+              let prompt = `你是一位台灣的專業旅遊行程設計師。
+
+            用戶需求：${question}
+            目的地：${location}
+            天數：${days}天
+            日期：${dates.join(', ')}
+
+            === 可用的真實景點資料 ===
+            以下是經過驗證的真實景點列表，請優先從這些景點中選擇：
+            ${relevantAttractions.join('\n')}
+            ===============================
+
+            重要規則：
+            1. 必須優先使用上述「可用的真實景點資料」中的地點。
+            2. 地點名稱必須與資料庫中的名稱完全一致。
+            3. 絕對不要虛構或猜測景點名稱。
+            ...
+            `;
+              
+              return prompt;
+            }
+            ```
+
+      * **前端 (React):**
+          * **[任務]** 在結果頁面顯示「資料來源：真實景點資料庫 ✓」標記。
+          * **[任務]** 當景點來自 RAG 資料庫時，顯示更多詳細資訊（評分、營業狀態等）。
+
+  * **實作階段：**
+
+      * **階段 1 - 資料庫設置（第 1 週）：**
+          * 設置 Supabase pgvector
+          * 建立資料表和搜尋函數
+      
+      * **階段 2 - 資料收集（第 2-3 週）：**
+          * 收集台灣 22 縣市的景點資料（目標：每縣市至少 100 個景點）
+          * 生成向量嵌入並寫入資料庫
+      
+      * **階段 3 - RAG 整合（第 4 週）：**
+          * 整合 LangChain 到後端
+          * 修改 Prompt 使用檢索到的景點
+      
+      * **階段 4 - 測試優化（第 5 週）：**
+          * A/B 測試比較有無 RAG 的準確度
+          * 調整檢索參數（相似度閾值、檢索數量）
+
+  * **成功指標 (Success Metrics):**
+
+      * **準確性提升：** 虛構景點比例從 20-30% 降至 < 5%
+      * **資料覆蓋：** 資料庫至少包含 2000+ 個真實台灣景點
+      * **回應速度：** RAG 檢索延遲 < 500ms
+      * **用戶滿意度：** 推薦景點的實用性評分提升 30%+
+
+  * **預期效益：**
+
+      * ✅ 消除 LLM 幻覺問題
+      * ✅ 確保推薦景點都真實存在
+      * ✅ 自動過濾已歇業店家
+      * ✅ 提供更詳細的景點資訊（評分、價位、營業時間）
+      * ✅ 支援語意搜尋（例如「適合親子的台中景點」）
 
 -----
 

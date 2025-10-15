@@ -11,6 +11,9 @@ __pycache__/
 .env
 .env.local
 .env.production
+react-app/.env
+react-app/.env.local
+react-app/.env.production
 
 # 忽略 VSCode 設定（如果有在用 VSCode）
 .vscode/
