@@ -97,6 +97,9 @@ function normalizeCityName(cityName) {
  */
 async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
     console.log(`[Weather API] 正在為城市「${cityName}」獲取 ${timeFrom} 到 ${timeTo} 的天氣...`);
+    console.log(`[Weather API] CWA_API_KEY 是否已設定: ${process.env.CWA_API_KEY ? '是' : '否（使用備用金鑰）'}`);
+    console.log(`[Weather API] 使用的授權碼前8碼: ${CWA_AUTH.substring(0, 8)}...`);
+    
     try {
         // 標準化城市名稱（處理「臺」和「台」的異體字）
         const normalizedCity = normalizeCityName(cityName);
@@ -116,13 +119,15 @@ async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
 
         const response = await fetch(url.toString(), { timeout: 10000 });
         if (!response.ok) {
-            console.error(`[Weather API] HTTP 錯誤: ${response.status}`);
+            console.error(`[Weather API] HTTP 錯誤: ${response.status} ${response.statusText}`);
+            const errorText = await response.text();
+            console.error(`[Weather API] 錯誤回應內容: ${errorText.substring(0, 500)}`);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
 
         if (data.success !== 'true') {
-            console.error(`[Weather API] API 回應失敗:`, data);
+            console.error(`[Weather API] API 回應失敗:`, JSON.stringify(data, null, 2));
             return { error: "獲取天氣資料失敗" };
         }
 
