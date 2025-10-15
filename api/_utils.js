@@ -559,10 +559,22 @@ function detectTransportationMode(origin, destination) {
         return 'transit';
     }
 
-    // 檢測港口/碼頭
-    const portKeywords = ['港', '港區', '碼頭', '港口', 'pier', 'terminal'];
-    if (portKeywords.some(keyword => originLower.includes(keyword.toLowerCase())) ||
-        portKeywords.some(keyword => destLower.includes(keyword.toLowerCase()))) {
+    // 檢測港口/碼頭（需要更精確的匹配，避免誤判"北港"等地名）
+    const portKeywords = [
+        '高雄港', '基隆港', '台中港', '花蓮港', '蘇澳港', '安平港',
+        '港口', '碼頭', '港區', '渡輪碼頭', '客運碼頭',
+        'port', 'pier', 'terminal', 'harbor', 'harbour'
+    ];
+    
+    // 排除包含"港"但不是港口的地名
+    const notPortKeywords = ['北港', '南港', '西港', '港仔', '港坪', '港墘', '港尾'];
+    
+    const hasPortOrigin = portKeywords.some(keyword => originLower.includes(keyword.toLowerCase()));
+    const hasPortDest = portKeywords.some(keyword => destLower.includes(keyword.toLowerCase()));
+    const isNotPortOrigin = notPortKeywords.some(keyword => originLower.includes(keyword.toLowerCase()));
+    const isNotPortDest = notPortKeywords.some(keyword => destLower.includes(keyword.toLowerCase()));
+    
+    if ((hasPortOrigin && !isNotPortOrigin) || (hasPortDest && !isNotPortDest)) {
         return 'transit';
     }
 
