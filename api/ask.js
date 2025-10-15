@@ -140,10 +140,11 @@ function buildPrompt(question, location, days, dates, weatherData) {
 4. 絕對禁止使用幻想或不存在的地點名稱。
 5. 絕對不要安排任何「交通時間」、「移動時間」等交通相關項目。
 6. 絕對不要安排「咖啡漫步」、「休息」等模糊活動。
-7. 住宿與飲食請推薦具體店家名稱。
-8. 路線應合理安排，避免不必要的來回走動。
-9. 使用繁體中文。
-10. 你的回應必須是可直接解析的純 JSON，不包含任何其他文字。
+7. 絕對不要推薦或安排「住宿」、「飯店」、「旅館」等過夜地點。
+8. 飲食請推薦具體店家名稱或知名美食街、夜市。
+9. 路線應合理安排，避免不必要的來回走動。
+10. 使用繁體中文。
+11. 你的回應必須是可直接解析的純 JSON，不包含任何其他文字。
 請嚴格使用以下 JSON 格式回答（這只是一個範例，請根據天數產生對應的內容）：
 {
   "title": "行程標題",
@@ -196,7 +197,8 @@ async function enrichWithMapsData(tripData, cityLocation) {
             
             // 檢查是否為歇業地點
             if (mapsInfo.is_closed) {
-                enrichedSection.warning = `注意：地點「${placeName}」${mapsInfo.error}`;
+                enrichedSection.warning = `注意：「${placeName}」${mapsInfo.error}`;
+                enrichedSection.closure_type = mapsInfo.closure_type; // 'permanent' 或 'temporary'
                 enrichedSection.maps_data = null; // 不設置maps_data，因為地點已歇業
             } else {
                 enrichedSection.maps_data = {

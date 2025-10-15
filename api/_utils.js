@@ -343,15 +343,16 @@ export async function getMultiDayWeatherSync(cityName, dates) {
  * @returns {Promise<object>} 景點詳情或錯誤物件
  */
 export async function getPlaceDetailsSync(placeName, location = "台灣") {
-    console.log(`[Maps] 正在查詢景點「${placeName}」的詳細資訊...`);
+    console.log(`[Maps] 正在查詢景點「${placeName}」的詳細資訊（限制在：${location}）...`);
     if (!GOOGLE_MAPS_API_KEY) {
         console.error("[Maps] Google Maps API Key 未設置");
         return { error: "Google Maps API Key 未設置" };
     }
     try {
-        // 1. Find Place ID
+        // 1. Find Place ID - 在查詢中直接加入城市限制
+        const searchQuery = `${placeName} ${location}`;
         const findPlaceUrl = new URL("https://maps.googleapis.com/maps/api/place/findplacefromtext/json");
-        findPlaceUrl.searchParams.append('input', placeName);
+        findPlaceUrl.searchParams.append('input', searchQuery);
         findPlaceUrl.searchParams.append('inputtype', 'textquery');
         findPlaceUrl.searchParams.append('fields', 'place_id,name,rating,user_ratings_total,formatted_address');
         findPlaceUrl.searchParams.append('locationbias', `region:${location}`);
@@ -362,15 +363,36 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         const searchData = await searchResponse.json();
 
         if (searchData.status !== 'OK' || !searchData.candidates || searchData.candidates.length === 0) {
-            console.warn(`[Maps] 找不到景點: ${placeName}`);
+            console.warn(`[Maps] 找不到景點: ${placeName} (在 ${location})`);
             return { error: `找不到景點: ${placeName}` };
         }
-        const placeId = searchData.candidates[0].place_id;
+        
+        // 驗證返回的地址是否包含目標城市
+        let selectedCandidate = null;
+        for (const candidate of searchData.candidates) {
+            const address = candidate.formatted_address || '';
+            console.log(`[Maps] 候選地點: ${candidate.name} - ${address}`);
+            
+            // 檢查地址是否包含目標城市
+            if (address.includes(location) || location === "台灣") {
+                selectedCandidate = candidate;
+                console.log(`[Maps] ✓ 選擇地點: ${candidate.name} (地址符合 ${location})`);
+                break;
+            }
+        }
+        
+        // 如果沒有找到符合城市的候選，使用第一個結果但記錄警告
+        if (!selectedCandidate) {
+            selectedCandidate = searchData.candidates[0];
+            console.warn(`[Maps] ⚠️ 警告: 找不到位於「${location}」的「${placeName}」，使用第一個搜尋結果: ${selectedCandidate.formatted_address}`);
+        }
+        
+        const placeId = selectedCandidate.place_id;
 
         // 2. Get Place Details
         const detailsUrl = new URL("https://maps.googleapis.com/maps/api/place/details/json");
         detailsUrl.searchParams.append('place_id', placeId);
-        detailsUrl.searchParams.append('fields', 'name,rating,user_ratings_total,formatted_address,geometry,types,business_status,permanently_closed');
+        detailsUrl.searchParams.append('fields', 'name,rating,user_ratings_total,formatted_address,address_components,geometry,types,business_status,permanently_closed');
         detailsUrl.searchParams.append('language', 'zh-TW');
         detailsUrl.searchParams.append('key', GOOGLE_MAPS_API_KEY);
 
@@ -383,18 +405,69 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         }
         const result = detailsData.result;
 
+        // 處理地址：使用 address_components 重組純繁體中文地址
+        let chineseAddress = '';
+        if (result.address_components && result.address_components.length > 0) {
+            const components = result.address_components;
+            
+            // 提取地址組件（按台灣地址格式排序）
+            const country = components.find(c => c.types.includes('country'))?.long_name || '';
+            const city = components.find(c => c.types.includes('administrative_area_level_1'))?.long_name || '';
+            const district = components.find(c => c.types.includes('administrative_area_level_3'))?.long_name || '';
+            const neighborhood = components.find(c => c.types.includes('neighborhood') || c.types.includes('sublocality_level_2'))?.long_name || '';
+            const route = components.find(c => c.types.includes('route'))?.long_name || '';
+            const streetNumber = components.find(c => c.types.includes('street_number'))?.long_name || '';
+            const postalCode = components.find(c => c.types.includes('postal_code'))?.long_name || '';
+            
+            // 組合成台灣格式的地址：郵遞區號 + 縣市 + 區 + 街道 + 門牌號
+            const addressParts = [
+                postalCode,
+                city,
+                district,
+                neighborhood,
+                route,
+                streetNumber
+            ].filter(part => part && part.trim() !== '');
+            
+            chineseAddress = addressParts.join('');
+            
+            console.log(`[Maps] 重組繁體中文地址: ${chineseAddress}`);
+        }
+        
+        // 如果重組失敗，使用 formatted_address 但清理英文部分
+        if (!chineseAddress) {
+            chineseAddress = result.formatted_address || '';
+            // 移除常見的英文地名
+            chineseAddress = chineseAddress
+                .replace(/\s*,\s*/g, '') // 移除逗號
+                .replace(/[A-Za-z\s]+/g, '') // 移除英文字母和空格
+                .trim();
+            console.log(`[Maps] 清理後的地址: ${chineseAddress}`);
+        }
+
         // 檢查地點營業狀態
         const businessStatus = result.business_status;
         const permanentlyClosed = result.permanently_closed;
 
+        // 記錄實際收到的狀態供除錯
+        console.log(`[Maps] 地點「${placeName}」的營業狀態: business_status=${businessStatus}, permanently_closed=${permanentlyClosed}`);
+
         if (businessStatus === 'CLOSED_PERMANENTLY' || permanentlyClosed === true) {
-            console.warn(`[Maps] 地點「${placeName}」已永久歇業，跳過此地點`);
-            return { error: `地點「${placeName}」已永久歇業` };
+            console.warn(`[Maps] 地點「${placeName}」已永久歇業`);
+            return { 
+                error: `已永久歇業`,
+                is_closed: true,
+                closure_type: 'permanent'
+            };
         }
 
         if (businessStatus === 'CLOSED_TEMPORARILY') {
-            console.warn(`[Maps] 地點「${placeName}」暫時歇業，跳過此地點`);
-            return { error: `地點「${placeName}」暫時歇業` };
+            console.warn(`[Maps] 地點「${placeName}」暫停營業`);
+            return { 
+                error: `暫停營業`,
+                is_closed: true,
+                closure_type: 'temporary'
+            };
         }
 
         // 額外檢查：如果評分很低且評論很少，可能也是問題地點
@@ -410,7 +483,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
             name: result.name || placeName,
             rating: rating,
             user_ratings_total: userRatingsTotal,
-            address: result.formatted_address || '',
+            address: chineseAddress,
             location: result.geometry?.location || {},
             types: result.types || [],
             business_status: businessStatus
