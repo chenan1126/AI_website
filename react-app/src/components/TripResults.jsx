@@ -473,8 +473,8 @@ function TripResults({ data }) {
 
   return (
     <div className="response-wrapper">
-      {/* 地圖視圖 */}
-      {data.itineraries && data.itineraries.length > 0 && (
+      {/* 地圖視圖 - 只在選擇了具體方案後才顯示 */}
+      {selectedItinerary !== null && data.itineraries && data.itineraries.length > 0 && (
         <div style={{ 
           marginBottom: '30px', 
           height: '500px',
@@ -482,10 +482,7 @@ function TripResults({ data }) {
           overflow: 'hidden',
           boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
         }}>
-          <MapView itineraries={selectedItinerary !== null 
-            ? [data.itineraries[selectedItinerary]] 
-            : data.itineraries} 
-          />
+          <MapView itineraries={[data.itineraries[selectedItinerary]]} />
         </div>
       )}
 
