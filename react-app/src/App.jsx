@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import TripResults from './components/TripResults'
-import MapView from './components/MapView'
 
 // API URL - 根據環境自動選擇
 // 開發環境: http://localhost:3000/api
@@ -15,8 +14,6 @@ function App() {
   const [error, setError] = useState('');
   const [serverRunning, setServerRunning] = useState(true);
   const [streamingStatus, setStreamingStatus] = useState('');
-  const [hoveredLocation, setHoveredLocation] = useState(null);
-  const [selectedItineraryIndex, setSelectedItineraryIndex] = useState(0);
 
   // 檢查後端服務器狀態
   useEffect(() => {
@@ -300,35 +297,7 @@ function App() {
         </div>
       )}
 
-      {results && !loading && (
-        <div className="results-with-map">
-          <div className="results-panel">
-            <div className="itinerary-tabs">
-              {results.itineraries && results.itineraries.length > 0 && results.itineraries.map((_, index) => (
-                <button
-                  key={index}
-                  className={`tab-button ${selectedItineraryIndex === index ? 'active' : ''}`}
-                  onClick={() => setSelectedItineraryIndex(index)}
-                >
-                  {index === 0 ? '🤖 純 AI 生成' : '✨ RAG 增強版'}
-                </button>
-              ))}
-            </div>
-            <TripResults 
-              data={results} 
-              selectedIndex={selectedItineraryIndex}
-              onLocationHover={setHoveredLocation}
-            />
-          </div>
-          <div className="map-panel">
-            <MapView 
-              itinerary={results.itineraries?.[selectedItineraryIndex]?.itinerary || []}
-              hoveredLocation={hoveredLocation}
-              onLocationHover={setHoveredLocation}
-            />
-          </div>
-        </div>
-      )}
+      {results && !loading && <TripResults data={results} />}
     </div>
   );
 }

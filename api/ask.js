@@ -184,7 +184,14 @@ function buildPrompt(question, location, days, dates, weatherData, ragContext = 
 
     prompt += `請根據上述天氣資訊和你的專業知識，為用戶設計最適合的台灣旅遊行程。
 
-重要規則：
+⚠️ 強制要求（必須嚴格遵守）：
+1. **每天至少安排 3-4 個景點**（建議 4-6 個景點）
+2. **每天至少安排 2 餐**（午餐 + 晚餐必須有，早餐可選）
+3. **不得出現超過 2 小時的空白時段**（除了睡眠時間）
+4. **行程時間**: 每天從 09:00 開始，到 18:00-19:00 結束
+5. **時間必須連貫**: 前一個活動結束時間 ≤ 下一個活動開始時間
+
+基本規則：
 1. 每個行程項目都必須包含 "day" 欄位，表示是第幾天（從1開始編號，直到 ${days} 天）。
 2. 時間欄位只包含時間範圍，不要包含天數標記。
 3. 地點名稱必須是具體的、可在地圖上找到的真實景點名稱。
@@ -197,6 +204,16 @@ function buildPrompt(question, location, days, dates, weatherData, ragContext = 
 10. 使用繁體中文。
 11. 你的回應必須是可直接解析的純 JSON，不包含任何其他文字。
 12. ${ragContext ? '**優先使用上述「可用的真實景點和餐廳資料」中的地點來規劃行程，這些都是經過驗證的真實存在的景點。**' : ''}
+
+標準時間配置範例：
+- 09:00-09:30 早餐（可選）
+- 10:00-11:30 景點1（1.5小時）
+- 12:00-13:00 午餐（1小時）
+- 13:30-15:00 景點2（1.5小時）
+- 15:30-17:00 景點3（1.5小時）
+- 17:30-18:30 景點4（1小時）
+- 19:00-20:00 晚餐（1小時）
+
 請嚴格使用以下 JSON 格式回答（這只是一個範例，請根據天數產生對應的內容）：
 {
   "title": "行程標題",
@@ -260,6 +277,14 @@ async function enrichWithMapsData(tripData, cityLocation) {
                     google_maps_name: mapsInfo.name || placeName,
                     wilson_score: calculateWilsonScore(mapsInfo.rating, mapsInfo.user_ratings_total)
                 };
+                
+                // 加入座標資訊（地圖顯示需要）
+                if (mapsInfo.location) {
+                    enrichedSection.coordinates = {
+                        lat: mapsInfo.location.lat,
+                        lng: mapsInfo.location.lng
+                    };
+                }
             }
         }
         return enrichedSection;
