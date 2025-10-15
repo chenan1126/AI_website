@@ -439,4 +439,109 @@ textarea {
     .activity-card { padding: 20px; }
     .day-nav-buttons { flex-direction: column; }
     .nav-btn { width: 100%; justify-content: center; }
+    
+    /* 響應式地圖布局 */
+    .results-with-map {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .map-panel {
+        position: relative !important;
+        top: 0 !important;
+        height: 400px !important;
+    }
 }
+
+/* ==================== 視覺化路線地圖樣式 ==================== */
+
+/* 雙欄布局：左側行程列表 + 右側地圖 */
+.results-with-map {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 24px;
+    height: calc(100vh - 400px);
+    min-height: 600px;
+}
+
+.results-panel {
+    overflow-y: auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+}
+
+.map-panel {
+    position: sticky;
+    top: 20px;
+    height: calc(100vh - 400px);
+    min-height: 600px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: #f5f5f5;
+}
+
+/* 行程切換標籤 */
+.itinerary-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 12px;
+}
+
+.tab-button {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    background: #f5f5f5;
+    color: #666;
+    border-radius: 8px 8px 0 0;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tab-button:hover {
+    background: #e8e8e8;
+    color: #333;
+}
+
+.tab-button.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* Leaflet 地圖自定義樣式 */
+.leaflet-container {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-popup-content {
+    margin: 12px;
+}
+
+/* 響應式設計：平板和小螢幕 */
+@media (max-width: 1024px) {
+    .results-with-map {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .map-panel {
+        position: relative;
+        top: 0;
+        height: 500px;
+        order: -1; /* 地圖顯示在上方 */
+    }
+}
+

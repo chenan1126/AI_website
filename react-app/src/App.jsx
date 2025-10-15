@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import TripResults from './components/TripResults'
+import MapView from './components/MapView'
 
 // API URL - 根據環境自動選擇
 // 開發環境: http://localhost:3000/api
@@ -14,6 +15,8 @@ function App() {
   const [error, setError] = useState('');
   const [serverRunning, setServerRunning] = useState(true);
   const [streamingStatus, setStreamingStatus] = useState('');
+  const [hoveredLocation, setHoveredLocation] = useState(null);
+  const [selectedItineraryIndex, setSelectedItineraryIndex] = useState(0);
 
   // 檢查後端服務器狀態
   useEffect(() => {
@@ -33,7 +36,7 @@ function App() {
   }, []);
 
   // 處理串流請求
-  const handleStreamRequest = async (sessionId, question) => {
+  const handleStreamRequest = async (sessionId, question, useRAG = true) => {
     return new Promise((resolve, reject) => {
       let weatherData = null;
       let startDate = null;
@@ -43,7 +46,11 @@ function App() {
       fetch(`${API_URL}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, question: question }),
+        body: JSON.stringify({ 
+          session_id: sessionId, 
+          question: question,
+          useRAG: useRAG 
+        }),
       })
         .then(async (response) => {
           if (!response.ok) {
@@ -64,11 +71,28 @@ function App() {
               if (!line.trim()) continue;
 
               const eventMatch = line.match(/^event: (.+)$/m);
-              const dataMatch = line.match(/^data: (.+)$/m);
-
-              if (eventMatch && dataMatch) {
+              
+              // 收集所有 data: 行
+              const dataLines = [];
+              const dataMatches = line.matchAll(/^data: (.*)$/gm);
+              for (const match of dataMatches) {
+                dataLines.push(match[1]);
+              }
+              
+              if (eventMatch && dataLines.length > 0) {
                 const eventType = eventMatch[1];
-                const eventData = JSON.parse(dataMatch[1]);
+                let eventData;
+                
+                try {
+                  // 合併多行 data 並解析 JSON
+                  const jsonString = dataLines.join('\n');
+                  eventData = JSON.parse(jsonString);
+                } catch (parseError) {
+                  console.error(`❌ JSON 解析失敗 (${eventType}):`, parseError.message);
+                  console.error('原始數據行數:', dataLines.length);
+                  console.error('第一行數據:', dataLines[0]?.substring(0, 100) + '...');
+                  continue; // 跳過這個事件，繼續處理下一個
+                }
 
                 console.log(`[SSE Event] type: ${eventType}, data:`, eventData);
 
@@ -156,10 +180,12 @@ function App() {
     const sessionId = 'session-' + Date.now();
 
     try {
-      // 並行請求兩個行程版本（使用相同 sessionId）
+      // 並行請求兩個行程版本
+      // 第一個：純 AI 生成（不使用 RAG）
+      // 第二個：RAG 增強（使用真實景點資料庫）
       const streamPromises = [
-        handleStreamRequest(sessionId, question),
-        handleStreamRequest(sessionId, question),
+        handleStreamRequest(sessionId, question, false), // useRAG = false
+        handleStreamRequest(sessionId, question, true),  // useRAG = true
       ];
 
       const apiResults = await Promise.all(streamPromises);
@@ -274,7 +300,35 @@ function App() {
         </div>
       )}
 
-      {results && !loading && <TripResults data={results} />}
+      {results && !loading && (
+        <div className="results-with-map">
+          <div className="results-panel">
+            <div className="itinerary-tabs">
+              {results.itineraries && results.itineraries.length > 0 && results.itineraries.map((_, index) => (
+                <button
+                  key={index}
+                  className={`tab-button ${selectedItineraryIndex === index ? 'active' : ''}`}
+                  onClick={() => setSelectedItineraryIndex(index)}
+                >
+                  {index === 0 ? '🤖 純 AI 生成' : '✨ RAG 增強版'}
+                </button>
+              ))}
+            </div>
+            <TripResults 
+              data={results} 
+              selectedIndex={selectedItineraryIndex}
+              onLocationHover={setHoveredLocation}
+            />
+          </div>
+          <div className="map-panel">
+            <MapView 
+              itinerary={results.itineraries?.[selectedItineraryIndex]?.itinerary || []}
+              hoveredLocation={hoveredLocation}
+              onLocationHover={setHoveredLocation}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

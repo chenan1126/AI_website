@@ -1,4 +1,7 @@
 // api/ask.js
+import dotenv from 'dotenv';
+dotenv.config();
+
 import {
     getMultiDayWeatherSync,
     getPlaceDetailsSync,
@@ -8,6 +11,7 @@ import {
     calculateWilsonScore
 } from './_utils.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getRAGContext } from './utils/ragRetriever.js';
 
 // 配置 Gemini API
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -85,10 +89,29 @@ JSON 格式: {"location": "地點", "city": "縣市", "days": "天數"}
 // Helper to send SSE events
 function sendSseEvent(res, eventType, data) {
     try {
+        // 確保 JSON.stringify 正確處理所有字符
+        const jsonData = JSON.stringify(data);
+        
+        // SSE 格式要求：data 行中不能有換行符
+        // 如果 JSON 本身包含換行，需要確保每行都以 "data: " 開頭
+        const lines = jsonData.split('\n');
+        
         res.write(`event: ${eventType}\n`);
-        res.write(`data: ${JSON.stringify(data)}\n\n`);
+        
+        if (lines.length === 1) {
+            // 單行 JSON，直接發送
+            res.write(`data: ${jsonData}\n\n`);
+        } else {
+            // 多行 JSON，每行都需要 "data: " 前綴
+            lines.forEach(line => {
+                res.write(`data: ${line}\n`);
+            });
+            res.write('\n');
+        }
     } catch (e) {
-        console.error("Error sending SSE event:", e);
+        console.error("❌ Error sending SSE event:", e);
+        console.error("Event type:", eventType);
+        console.error("Data:", data);
     }
 }
 
@@ -103,7 +126,30 @@ function parseTripDays(tripDaysStr) {
     return 1; // Default
 }
 
-function buildPrompt(question, location, days, dates, weatherData) {
+/**
+ * 從用戶查詢中提取旅遊偏好關鍵字
+ */
+function extractPreferencesFromQuery(query) {
+    const preferences = [];
+    const keywords = {
+        '親子': ['親子', '小孩', '兒童', '家庭'],
+        '美食': ['美食', '小吃', '餐廳', '吃'],
+        '文化': ['文化', '古蹟', '歷史', '博物館'],
+        '自然': ['自然', '山', '海', '風景', '步道'],
+        '休閒': ['休閒', '放鬆', '漫步'],
+        '拍照': ['拍照', '打卡', '網美']
+    };
+    
+    for (const [pref, words] of Object.entries(keywords)) {
+        if (words.some(word => query.includes(word))) {
+            preferences.push(pref);
+        }
+    }
+    
+    return preferences.length > 0 ? preferences : ['一般旅遊'];
+}
+
+function buildPrompt(question, location, days, dates, weatherData, ragContext = null) {
     let prompt = `你是一位台灣的專業旅遊行程設計師，擅長針對台灣各地設計詳細的行程規劃。
 
 用戶需求：${question}
@@ -131,6 +177,11 @@ function buildPrompt(question, location, days, dates, weatherData) {
         prompt += "\n";
     }
 
+    // 加入 RAG 檢索的真實景點和餐廳資料
+    if (ragContext) {
+        prompt += ragContext;
+    }
+
     prompt += `請根據上述天氣資訊和你的專業知識，為用戶設計最適合的台灣旅遊行程。
 
 重要規則：
@@ -145,6 +196,7 @@ function buildPrompt(question, location, days, dates, weatherData) {
 9. 路線應合理安排，避免不必要的來回走動。
 10. 使用繁體中文。
 11. 你的回應必須是可直接解析的純 JSON，不包含任何其他文字。
+12. ${ragContext ? '**優先使用上述「可用的真實景點和餐廳資料」中的地點來規劃行程，這些都是經過驗證的真實存在的景點。**' : ''}
 請嚴格使用以下 JSON 格式回答（這只是一個範例，請根據天數產生對應的內容）：
 {
   "title": "行程標題",
@@ -311,10 +363,12 @@ export default async function handler(req, res) {
     });
 
     try {
-        const { question: naturalLanguageQuery } = req.body;
+        const { question: naturalLanguageQuery, useRAG = true } = req.body;
         if (!naturalLanguageQuery) {
             throw new Error("Missing question parameter");
         }
+
+        console.log(`🔧 處理請求 - useRAG: ${useRAG}`);
 
         // 1. 使用 Gemini 解析用戶的自然語言輸入
         sendSseEvent(res, 'parsing', { status: 'start_query_parsing' });
@@ -338,15 +392,51 @@ export default async function handler(req, res) {
         const weatherArray = tripDates.map(date => ({ date, weather: weatherData[date] || null }));
         sendSseEvent(res, 'weather', { status: 'complete', data: weatherArray });
 
-        // 3. 建立增強版提示
+        // 3. RAG 檢索真實景點和餐廳資料（可選）
+        let ragContext = null;
+        if (useRAG) {
+            sendSseEvent(res, 'rag', { status: 'retrieving' });
+            try {
+                console.log('🔍 開始 RAG 檢索...');
+                const userParams = {
+                    location: locationName,
+                    city: cityForWeather,
+                    days: tripDays,
+                    tripType: naturalLanguageQuery.includes('親子') ? '親子遊' : 
+                              naturalLanguageQuery.includes('美食') ? '美食之旅' : 
+                              naturalLanguageQuery.includes('文化') ? '文化之旅' : '一般旅遊',
+                    preferences: extractPreferencesFromQuery(naturalLanguageQuery),
+                    specialRequirements: naturalLanguageQuery
+                };
+                
+                ragContext = await getRAGContext(userParams, {
+                    attractionLimit: tripDays * 8,  // 每天約8個景點
+                    restaurantLimit: tripDays * 5,  // 每天約5個餐廳選擇
+                    threshold: 0.7,
+                    separateQueries: true
+                });
+                
+                console.log(`✅ RAG 檢索完成，檢索到 ${ragContext.length} 字元的上下文`);
+                sendSseEvent(res, 'rag', { status: 'complete', contextLength: ragContext.length });
+            } catch (ragError) {
+                console.warn('⚠️ RAG 檢索失敗，將不使用向量檢索:', ragError.message);
+                sendSseEvent(res, 'rag', { status: 'error', error: ragError.message });
+                ragContext = null;
+            }
+        } else {
+            console.log('🚫 跳過 RAG 檢索（useRAG=false）');
+            sendSseEvent(res, 'rag', { status: 'skipped', message: '使用純 AI 生成模式' });
+        }
+
+        // 4. 建立增強版提示（包含 RAG 上下文，如果有的話）
         const finalQuestion = `請幫我規劃在「${locationName}」的「${tripDays}天」行程。原始需求是：「${naturalLanguageQuery}」`;
-        const prompt = buildPrompt(finalQuestion, locationName, tripDays, tripDates, weatherData);
+        const prompt = buildPrompt(finalQuestion, locationName, tripDays, tripDates, weatherData, ragContext);
 
         // --- DEBUG: 將完整的 prompt 送到前端 ---
-        sendSseEvent(res, 'debug_prompt', { prompt: prompt });
+        sendSseEvent(res, 'debug_prompt', { prompt: prompt, useRAG: useRAG });
         // -----------------------------------------
 
-        // 4. Gemini Streaming
+        // 5. Gemini Streaming
         sendSseEvent(res, 'generation', { status: 'starting' });
         const model = genAI.getGenerativeModel({
             model: "gemini-2.5-flash",
@@ -380,6 +470,11 @@ export default async function handler(req, res) {
 
         // 6. Final Statistics and Result
         calculateTripStatistics(tripData);
+        
+        // 加入 RAG 使用標記
+        tripData.useRAG = useRAG;
+        tripData.generationMethod = useRAG ? 'RAG 增強（真實景點資料庫）' : '純 AI 生成';
+        
         sendSseEvent(res, 'result', { data: tripData });
 
         // 7. Done

@@ -1,13 +1,18 @@
 import React from 'react';
 import WeatherCard from './WeatherCard';
 
-function TripResults({ data }) {
+function TripResults({ data, selectedIndex = null, onLocationHover }) {
   const [dayIndices, setDayIndices] = React.useState({});
   const [selectedItinerary, setSelectedItinerary] = React.useState(null);
 
   if (!data || !data.itineraries) {
     return null;
   }
+
+  // 如果提供了 selectedIndex，則只顯示該行程
+  const displayItineraries = selectedIndex !== null 
+    ? [data.itineraries[selectedIndex]]
+    : data.itineraries;
 
   const handleItinerarySelect = (index) => {
     setSelectedItinerary(index);
@@ -264,6 +269,37 @@ function TripResults({ data }) {
         <div className="trip-title-section" style={{ marginBottom: '20px' }}>
           <h2 style={{ color: '#1e293b', marginBottom: '15px', fontWeight: '600' }}>
             {itinerary.title || `行程方案 ${index + 1}`}
+            {itinerary.useRAG !== undefined && (
+              <span style={{
+                marginLeft: '12px',
+                background: itinerary.useRAG 
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
+                  : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                color: 'white',
+                padding: '6px 14px',
+                borderRadius: '20px',
+                fontSize: '13px',
+                fontWeight: '600',
+                boxShadow: itinerary.useRAG 
+                  ? '0 2px 8px rgba(16, 185, 129, 0.3)' 
+                  : '0 2px 8px rgba(139, 92, 246, 0.3)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                {itinerary.useRAG ? (
+                  <>
+                    <i className="fas fa-database"></i>
+                    RAG 增強版
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-robot"></i>
+                    純 AI 生成
+                  </>
+                )}
+              </span>
+            )}
             {isSelectionMode && (
               <span style={{
                 display: 'inline-block',
@@ -279,6 +315,35 @@ function TripResults({ data }) {
               </span>
             )}
           </h2>
+          
+          {/* 生成方式說明 */}
+          {itinerary.generationMethod && (
+            <div style={{
+              background: itinerary.useRAG ? '#f0fdf4' : '#faf5ff',
+              border: itinerary.useRAG ? '1px solid #86efac' : '1px solid #d8b4fe',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              marginBottom: '12px',
+              fontSize: '13px',
+              color: '#64748b',
+              display: 'flex',
+              alignItems: 'start',
+              gap: '8px'
+            }}>
+              <i className={itinerary.useRAG ? 'fas fa-check-circle' : 'fas fa-info-circle'} 
+                 style={{ color: itinerary.useRAG ? '#10b981' : '#8b5cf6', marginTop: '2px' }}></i>
+              <div>
+                <strong style={{ color: '#334155' }}>
+                  {itinerary.useRAG ? '真實景點資料' : 'AI 創意推薦'}:
+                </strong>
+                {' '}
+                {itinerary.useRAG 
+                  ? '此行程基於我們的 11,078 筆真實景點和餐廳資料庫，所有地點都經過驗證，包含真實地址、電話和營業時間。'
+                  : '此行程由 AI 根據您的需求創意生成，可能包含更多樣化的建議，但部分地點需要您自行驗證。'
+                }
+              </div>
+            </div>
+          )}
           
           {itinerary.recommendation_score && (
             <div style={{
