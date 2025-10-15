@@ -94,18 +94,91 @@ function TripResults({ data }) {
                 </span>
               )}
             </h3>
-            {section.rating && (
-              <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ color: '#ff9800', fontSize: '18px' }}>
-                  {'★'.repeat(Math.floor(section.rating))}
-                  {'☆'.repeat(5 - Math.floor(section.rating))}
+            
+            {/* Google 評分資訊與威爾遜綜合評分 */}
+            {section.maps_data && (section.maps_data.rating || section.rating) && (
+              <div style={{ 
+                marginBottom: '15px',
+                padding: '12px',
+                background: 'linear-gradient(135deg, #fff9e6 0%, #fff5e1 100%)',
+                borderRadius: '8px',
+                border: '1px solid #ffe0b2'
+              }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '15px',
+                  flexWrap: 'wrap'
+                }}>
+                  {/* Google 星級評分 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ 
+                      color: '#ff9800', 
+                      fontSize: '16px',
+                      lineHeight: '1'
+                    }}>
+                      {'★'.repeat(Math.floor(section.maps_data?.rating || section.rating || 0))}
+                      {'☆'.repeat(5 - Math.floor(section.maps_data?.rating || section.rating || 0))}
+                    </span>
+                    <span style={{ 
+                      color: '#e65100', 
+                      fontSize: '15px',
+                      fontWeight: '600'
+                    }}>
+                      {(section.maps_data?.rating || section.rating || 0).toFixed(1)}
+                    </span>
+                  </div>
+                  
+                  {/* 評論數 */}
+                  {section.maps_data?.user_ratings_total && (
+                    <div style={{ 
+                      color: '#666', 
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <i className="fas fa-comment-dots" style={{ color: '#999' }}></i>
+                      <span>{section.maps_data.user_ratings_total.toLocaleString()} 則評論</span>
+                    </div>
+                  )}
+                  
+                  {/* 威爾遜綜合評分 */}
+                  {section.maps_data?.wilson_score !== undefined && section.maps_data?.wilson_score !== null && (
+                    <div style={{ 
+                      marginLeft: 'auto',
+                      padding: '6px 12px',
+                      background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)',
+                      borderRadius: '20px',
+                      color: 'white',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 4px rgba(76, 175, 80, 0.3)'
+                    }}>
+                      <i className="fas fa-award"></i>
+                      <span>綜合評分: {section.maps_data.wilson_score.toFixed(1)}/5.0</span>
+                    </div>
+                  )}
                 </div>
-                <span style={{ color: '#666', fontSize: '14px' }}>{section.rating}/5</span>
-                {section.maps_data && section.maps_data.user_ratings_total && (
-                  <span style={{ color: '#999', fontSize: '13px' }}>({section.maps_data.user_ratings_total} 則評論)</span>
+                
+                {/* 評分說明提示 */}
+                {section.maps_data?.wilson_score !== undefined && section.maps_data?.wilson_score !== null && (
+                  <div style={{ 
+                    marginTop: '8px',
+                    fontSize: '11px',
+                    color: '#795548',
+                    fontStyle: 'italic'
+                  }}>
+                    <i className="fas fa-info-circle" style={{ marginRight: '4px' }}></i>
+                    綜合評分考慮了評分高低與評論數量，更能反映真實品質
+                  </div>
                 )}
               </div>
             )}
+            
             {(section.address || (section.maps_data && section.maps_data.address)) && (
               <div style={{ color: '#666', fontSize: '14px', marginBottom: '15px', display: 'flex', alignItems: 'start', gap: '6px' }}>
                 <i className="fas fa-location-arrow" style={{ marginTop: '3px' }}></i>
