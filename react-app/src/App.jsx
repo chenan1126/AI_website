@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import TripResults from './components/TripResults'
 
-// API URL - 使用相對路徑連接到 Vercel Serverless Functions
-const API_URL = '/api';
+// API URL - 根據環境自動選擇
+// 開發環境: http://localhost:3000/api
+// 生產環境: /api (相對路徑)
+const API_URL = import.meta.env.DEV ? 'http://localhost:3000/api' : '/api';
 
 function App() {
   const [question, setQuestion] = useState('');

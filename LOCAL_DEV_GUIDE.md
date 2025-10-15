@@ -83,6 +83,31 @@ git push origin main
 
 ## 🔄 常見問題
 
+### Q: 出現 "HTTP error! status: 404" 錯誤？
+**A**: 
+這表示前端無法連接到後端 API。請檢查：
+
+1. **確認 Vercel Dev Server 正在運行**
+   - 應該在 http://localhost:3000 運行
+   - 終端應該顯示 "Ready! Available at http://localhost:3000"
+
+2. **檢查 API_URL 設定**
+   - 開發環境應該使用 `http://localhost:3000/api`
+   - `App.jsx` 中已自動根據環境切換
+
+3. **測試後端是否正常**
+   ```bash
+   # 在瀏覽器或終端測試
+   curl http://localhost:3000/api/ask
+   ```
+
+4. **重啟服務器**
+   ```bash
+   # 先停止 Vercel Dev (Ctrl+C)
+   # 然後重新啟動
+   vercel dev --listen 3000
+   ```
+
 ### Q: 修改程式碼後沒有更新？
 **A**: 
 - 前端：檢查終端是否顯示重新編譯訊息
