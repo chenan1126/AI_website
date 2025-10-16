@@ -12,10 +12,11 @@
 - **地理優化**：K-Means 聚類自動分組，最短路徑排序
 
 ### 🗺️ 地圖視覺化
-- **Google Maps 整合**：互動式地圖顯示
-- **景點標記**：多天行程顏色編碼
-- **路線規劃**：自動計算距離與時間
-- **交通模式**：智能判斷開車/大眾運輸
+- **Leaflet + OpenStreetMap**：無需 API Key 的開源地圖方案
+- **景點標記**：自訂水滴形狀標記，每天不同顏色編碼
+- **路線規劃**：自動繪製彩色路線連接景點
+- **分天顯示**：地圖與行程列表雙向同步切換
+- **座標自動提取**：從後端數據自動獲取地理位置
 
 ### 🎨 用戶體驗
 - **響應式設計**：適配各種螢幕尺寸
@@ -25,10 +26,12 @@
 ## 🚀 快速開始
 
 ### 環境需求
+
 - Node.js 18+
 - npm 或 yarn
 - Supabase 帳號
-- Google API Keys (Gemini + Maps)
+- Google Gemini API Key
+- 中央氣象署 API Key
 
 ### 安裝步驟
 
@@ -59,7 +62,6 @@ cp .env.example .env
 編輯 `.env` 填入您的 API Keys：
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
-GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
 CWA_API_KEY=your_cwa_api_key_here
 SUPABASE_URL=your_supabase_project_url_here
 SUPABASE_SERVICE_KEY=your_supabase_service_role_key_here
@@ -67,7 +69,7 @@ SUPABASE_SERVICE_KEY=your_supabase_service_role_key_here
 
 4. **設定資料庫**
 
-參考 [SUPABASE_SETUP_GUIDE.md](./SUPABASE_SETUP_GUIDE.md) 設置 Supabase：
+執行 Supabase SQL 腳本設置資料庫：
 - 啟用 pgvector 擴展
 - 執行 SQL 腳本建立資料表
 - 匯入景點和餐廳資料
@@ -113,7 +115,7 @@ AI_website/
 │   ├── src/
 │   │   ├── App.jsx               # 主應用組件
 │   │   └── components/
-│   │       ├── MapView.jsx       # Google Maps 地圖
+│   │       ├── MapView.jsx       # Leaflet 地圖組件
 │   │       ├── TripResults.jsx   # 行程結果顯示
 │   │       └── WeatherCard.jsx   # 天氣卡片
 │   └── package.json
@@ -134,7 +136,6 @@ AI_website/
 ├── README.md                     # 本文件
 ├── ROADMAP.md                    # 開發藍圖
 ├── RAG_SUMMARY.md                # RAG 技術文檔
-├── SUPABASE_SETUP_GUIDE.md       # 資料庫設置指南
 └── VERCEL_ENV_SETUP.md           # 部署指南
 ```
 
@@ -149,7 +150,7 @@ AI_website/
 
 ### 前端
 - **框架**: React 18 + Vite
-- **地圖**: Google Maps API (`@vis.gl/react-google-maps`)
+- **地圖**: Leaflet + OpenStreetMap (`react-leaflet`)
 - **樣式**: CSS Modules
 - **狀態管理**: React Hooks
 
@@ -170,10 +171,10 @@ AI_website/
 
 ### 智能交通規劃
 - ✅ **自動模式檢測**：開車 vs 大眾運輸
-- ✅ **精準距離計算**：Google Maps Directions API
+- ✅ **精準距離計算**：Haversine 公式計算地理距離
 - ✅ **時間估算**：考慮交通狀況
 - ✅ **路線優化**：減少旅行時間佔比
-- ✅ **地理約束**：每日行程範圍不超過 30 公里
+- ✅ **地理約束**：每日行程範圍不超過 40 公里
 
 ### 評分機制
 - **Wilson 信賴區間**：統計學上更準確的評分
@@ -196,10 +197,9 @@ git push origin main
 
 3. **設定環境變數**
 
-參考 [VERCEL_ENV_SETUP.md](./VERCEL_ENV_SETUP.md) 在 Vercel 設定以下變數：
+在 Vercel 設定以下環境變數：
 ```
 GEMINI_API_KEY
-GOOGLE_MAPS_API_KEY
 CWA_API_KEY
 SUPABASE_URL
 SUPABASE_SERVICE_KEY
@@ -213,7 +213,6 @@ SUPABASE_SERVICE_KEY
 
 - [開發藍圖 (ROADMAP.md)](./ROADMAP.md) - 功能規劃與開發進度
 - [RAG 技術文檔 (RAG_SUMMARY.md)](./RAG_SUMMARY.md) - RAG 系統詳細說明
-- [Supabase 設置 (SUPABASE_SETUP_GUIDE.md)](./SUPABASE_SETUP_GUIDE.md) - 資料庫設置教學
 - [Vercel 部署 (VERCEL_ENV_SETUP.md)](./VERCEL_ENV_SETUP.md) - 部署配置指南
 
 ## 🤝 貢獻

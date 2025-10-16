@@ -8,8 +8,8 @@
 
 | 階段 | 優先級 | 核心功能 | 狀態 | 目標 |
 | :--- | :--- | :--- | :--- | :--- |
-| **第一階段** | 🚀 **立刻開始 (Now)** | 1. **RAG 向量資料庫系統 (Supabase + Gemini)**<br>2. **視覺化路線地圖 (Leaflet + OpenStreetMap)**<br>3. 預算規劃與成本估算 | ✅ **已完成** | **提升 AI 準確性**，建立台灣旅遊景點知識庫，消除 LLM 幻覺問題。 |
-| **第二階段** | 🎯 **下一步 (Next)** | 4. **核心使用者認證 (Core User Authentication)** | 🔄 **進行中** | **建立使用者系統地基**，讓應用程式具備身份識別能力。 |
+| **第一階段** | 🚀 **立刻開始 (Now)** | 1. **RAG 向量資料庫系統 (Supabase + Gemini)**<br>2. **視覺化路線地圖 (Leaflet + OpenStreetMap)** | ✅ **已完成** | **提升 AI 準確性**，建立台灣旅遊景點知識庫，消除 LLM 幻覺問題。 |
+| **第二階段** | 🎯 **下一步 (Next)** | 3. 預算規劃與成本估算<br>4. **核心使用者認證 (Core User Authentication)** | ⏳ **待開發** | **建立使用者系統地基**，讓應用程式具備身份識別能力。 |
 | **第三階段** | ✨ **未來目標 (Future)** | 5. 協同規劃<br>6. AI 旅行日誌生成 | ⏳ **待開發** | 從個人工具擴展至社交應用，並將服務生命週期延伸至旅程結束後。 |
 
 -----
@@ -28,12 +28,11 @@
       * ✅ 雙模式生成：純 AI vs RAG 增強
       * ✅ 語意搜尋與相似度匹配
       * ✅ Google Maps 整合 (評分、評論數、營業狀態)
+      * ✅ K-Means 地理聚類優化
+      * ✅ 最短路徑排序算法
   
   * **技術文檔**:
-      * 📄 [RAG_INTEGRATION_COMPLETE.md](./RAG_INTEGRATION_COMPLETE.md) - 整合完成報告
-      * 📄 [RAG_SUMMARY.md](./RAG_SUMMARY.md) - 技術總結
-      * 📄 [RAG_VS_AI_COMPARISON.md](./RAG_VS_AI_COMPARISON.md) - 性能比較
-      * 📄 [QUICK_START_RAG.md](./QUICK_START_RAG.md) - 快速入門指南
+      * 📄 [RAG_SUMMARY.md](./RAG_SUMMARY.md) - RAG 技術總結
 
   * **使用者故事 (User Story):**
 
