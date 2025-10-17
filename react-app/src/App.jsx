@@ -34,6 +34,21 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // 開發時方便測試：若在 dev 模式且 session 尚未建立，注入一個假 session 以顯示介面
+  useEffect(() => {
+    if (import.meta.env.DEV && !session) {
+      // 這個假 session 只在開發模式使用，生產不會被執行
+      const fakeSession = {
+        user: {
+          id: 'dev-user',
+          email: 'dev@example.com',
+        },
+        access_token: 'dev-token'
+      };
+      setSession(fakeSession);
+    }
+  }, [session]);
+
   // 檢查後端服務器狀態
   useEffect(() => {
     const checkServer = async () => {
