@@ -1,16 +1,9 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import TripResults from './components/TripResults'
-<<<<<<< Updated upstream
-import { supabase } from './supabaseClient'
-import { Auth } from '@supabase/auth-ui-react'
-import { ThemeSupa } from '@supabase/auth-ui-shared'
-=======
 import AuthForm from './components/AuthForm'
 import ProfileEditor from './components/ProfileEditor'
 import { supabase } from './supabaseClient'
->>>>>>> Stashed changes
-
 // API URL - 根據環境自動選擇
 // 開發環境: http://localhost:3000/api
 // 生產環境: /api (相對路徑)
@@ -24,7 +17,6 @@ function App() {
   const [error, setError] = useState('');
   const [serverRunning, setServerRunning] = useState(true);
   const [streamingStatus, setStreamingStatus] = useState('');
-  const [session, setSession] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
@@ -46,36 +38,6 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, []);
-
-  // 監聽認證狀態
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // 開發時方便測試：若在 dev 模式且 session 尚未建立，注入一個假 session 以顯示介面
-  useEffect(() => {
-    if (import.meta.env.DEV && !session) {
-      // 這個假 session 只在開發模式使用，生產不會被執行
-      const fakeSession = {
-        user: {
-          id: 'dev-user',
-          email: 'dev@example.com',
-        },
-        access_token: 'dev-token'
-      };
-      setSession(fakeSession);
-    }
-  }, [session]);
 
   // 檢查後端服務器狀態
   useEffect(() => {
@@ -286,89 +248,6 @@ function App() {
     setStreamingStatus('');
   };
 
-<<<<<<< Updated upstream
-  // 登出功能
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
-  // 如果未登入，顯示登入頁面
-  if (!session) {
-    return (
-      <div className="container">
-        <header>
-          <div className="logo">
-            <i className="fas fa-plane-departure"></i>
-            <h1>AI 旅遊規劃助手</h1>
-          </div>
-        </header>
-
-        <div className="auth-container" style={{
-          maxWidth: '500px',
-          margin: '40px auto',
-          padding: '30px',
-          background: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          <h2 style={{ 
-            textAlign: 'center', 
-            marginBottom: '24px',
-            color: '#1e293b',
-            fontSize: '24px'
-          }}>
-            <i className="fas fa-user-circle" style={{ marginRight: '8px' }}></i>
-            登入或註冊
-          </h2>
-          <p style={{
-            textAlign: 'center',
-            color: '#64748b',
-            marginBottom: '24px',
-            fontSize: '14px'
-          }}>
-            登入以儲存您的行程記錄和偏好設定
-          </p>
-          <Auth
-            supabaseClient={supabase}
-            appearance={{ theme: ThemeSupa }}
-            providers={[]}
-            localization={{
-              variables: {
-                sign_in: {
-                  email_label: '電子郵件',
-                  password_label: '密碼',
-                  email_input_placeholder: '您的電子郵件',
-                  password_input_placeholder: '您的密碼',
-                  button_label: '登入',
-                  loading_button_label: '登入中...',
-                  social_provider_text: '使用 {{provider}} 登入',
-                  link_text: '已經有帳號？登入',
-                },
-                sign_up: {
-                  email_label: '電子郵件',
-                  password_label: '密碼',
-                  email_input_placeholder: '您的電子郵件',
-                  password_input_placeholder: '您的密碼',
-                  button_label: '註冊',
-                  loading_button_label: '註冊中...',
-                  social_provider_text: '使用 {{provider}} 註冊',
-                  link_text: '還沒有帳號？註冊',
-                },
-                forgotten_password: {
-                  link_text: '忘記密碼？',
-                  button_label: '發送重設密碼郵件',
-                  loading_button_label: '發送中...',
-                },
-              },
-            }}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // 已登入，顯示主應用
-=======
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -401,7 +280,6 @@ function App() {
     return '使用者';
   };
 
->>>>>>> Stashed changes
   return (
     <div className="container">
       <header>
@@ -409,37 +287,6 @@ function App() {
           <i className="fas fa-plane-departure"></i>
           <h1>AI 旅遊規劃助手</h1>
         </div>
-<<<<<<< Updated upstream
-        {/* 使用者資訊與登出按鈕 */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          fontSize: '14px',
-          color: '#64748b'
-        }}>
-          <i className="fas fa-user" style={{ fontSize: '16px' }}></i>
-          <span>{session.user.email}</span>
-          <button
-            onClick={handleSignOut}
-            style={{
-              background: '#ef4444',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '8px 16px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'background 0.2s ease'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#dc2626'}
-            onMouseLeave={(e) => e.currentTarget.style.background = '#ef4444'}
-          >
-            <i className="fas fa-sign-out-alt" style={{ marginRight: '6px' }}></i>
-            登出
-          </button>
-=======
         <div className="auth-section">
           {session ? (
             <div className="user-info">
@@ -462,11 +309,8 @@ function App() {
               登入 / 註冊
             </button>
           )}
->>>>>>> Stashed changes
         </div>
-      </header>
-
-      {!serverRunning && (
+      </header>      {!serverRunning && (
         <div className="error">
           <i className="fas fa-exclamation-triangle"></i>
           <span>後端服務器未運行或無法訪問，請檢查連接。</span>
