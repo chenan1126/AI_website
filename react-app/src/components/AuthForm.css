@@ -1,0 +1,317 @@
+/* 彈窗遮罩 */
+.auth-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* 彈窗內容 */
+.auth-modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 40px;
+  max-width: 450px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  animation: slideUp 0.3s ease-out;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.auth-header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.auth-header p {
+  font-size: 16px;
+  color: #64748b;
+}
+
+.auth-footer {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.auth-footer p {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 關閉按鈕 */
+.auth-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  color: #64748b;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.auth-close:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+/* 表單欄位 */
+.auth-field {
+  margin-bottom: 20px;
+}
+
+.auth-field label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.auth-field label i {
+  color: #6366f1;
+  font-size: 16px;
+}
+
+.auth-field label .required {
+  color: #ef4444;
+  margin-left: 2px;
+  font-weight: 700;
+}
+
+.auth-field input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.auth-field input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.auth-field input:disabled {
+  background: #f1f5f9;
+  cursor: not-allowed;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: normal;
+}
+
+/* 提交按鈕 */
+.auth-submit {
+  width: 100%;
+  padding: 14px 24px;
+  background: #6366f1;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  margin-top: 24px;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: #4f46e5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 錯誤訊息 */
+.auth-error {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 成功訊息 */
+.auth-success {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #16a34a;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 切換登入/註冊 */
+.auth-switch {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.auth-switch button {
+  background: transparent;
+  border: none;
+  color: #6366f1;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+  text-decoration: underline;
+}
+
+.auth-switch button:hover:not(:disabled) {
+  color: #4f46e5;
+}
+
+.auth-switch button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 分隔線 */
+.auth-divider {
+  position: relative;
+  text-align: center;
+  margin: 24px 0;
+}
+
+.auth-divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.auth-divider span {
+  position: relative;
+  display: inline-block;
+  padding: 0 16px;
+  background: white;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Google 登入按鈕 */
+.google-login-btn {
+  width: 100%;
+  padding: 14px 24px;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+.google-login-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.google-login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.google-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}

@@ -1,0 +1,192 @@
+/* 與 AuthForm.css 類似的樣式 */
+
+.profile-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.profile-modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 40px;
+  max-width: 450px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.profile-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  color: #64748b;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.profile-close:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.profile-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.profile-header i {
+  font-size: 48px;
+  color: #6366f1;
+  margin-bottom: 16px;
+}
+
+.profile-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.profile-field {
+  margin-bottom: 20px;
+}
+
+.profile-field label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.profile-field label i {
+  color: #6366f1;
+  font-size: 16px;
+}
+
+.profile-field input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.profile-field input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.profile-field input:disabled,
+.disabled-field {
+  background: #f1f5f9 !important;
+  cursor: not-allowed !important;
+  color: #64748b;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: normal;
+}
+
+.profile-submit {
+  width: 100%;
+  padding: 14px 24px;
+  background: #6366f1;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  margin-top: 24px;
+}
+
+.profile-submit:hover:not(:disabled) {
+  background: #4f46e5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.profile-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.profile-error {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-success {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #16a34a;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

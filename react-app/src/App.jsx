@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import TripResults from './components/TripResults'
+<<<<<<< Updated upstream
 import { supabase } from './supabaseClient'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
+=======
+import AuthForm from './components/AuthForm'
+import ProfileEditor from './components/ProfileEditor'
+import { supabase } from './supabaseClient'
+>>>>>>> Stashed changes
 
 // API URL - 根據環境自動選擇
 // 開發環境: http://localhost:3000/api
@@ -18,6 +24,28 @@ function App() {
   const [error, setError] = useState('');
   const [serverRunning, setServerRunning] = useState(true);
   const [streamingStatus, setStreamingStatus] = useState('');
+  const [session, setSession] = useState(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+
+  // 監聽認證狀態變化
+  useEffect(() => {
+    // 獲取當前 session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      console.log('✅ 當前 session:', session);
+    });
+
+    // 監聽認證狀態變化
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('🔄 認證狀態變化:', _event, session);
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // 監聽認證狀態
   useEffect(() => {
@@ -258,6 +286,7 @@ function App() {
     setStreamingStatus('');
   };
 
+<<<<<<< Updated upstream
   // 登出功能
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -339,6 +368,40 @@ function App() {
   }
 
   // 已登入，顯示主應用
+=======
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      console.log('✅ 登出成功');
+    } catch (error) {
+      console.error('❌ 登出失敗:', error);
+    }
+  };
+
+  // 取得使用者顯示名稱
+  const getUserDisplayName = () => {
+    if (!session?.user) return '';
+    
+    // 優先使用 user_metadata 中的 display_name
+    if (session.user.user_metadata?.display_name) {
+      return session.user.user_metadata.display_name;
+    }
+    
+    // 如果是 Google 登入，使用 full_name
+    if (session.user.user_metadata?.full_name) {
+      return session.user.user_metadata.full_name;
+    }
+    
+    // 如果都沒有，使用 email 前綴
+    if (session.user.email) {
+      return session.user.email.split('@')[0];
+    }
+    
+    return '使用者';
+  };
+
+>>>>>>> Stashed changes
   return (
     <div className="container">
       <header>
@@ -346,6 +409,7 @@ function App() {
           <i className="fas fa-plane-departure"></i>
           <h1>AI 旅遊規劃助手</h1>
         </div>
+<<<<<<< Updated upstream
         {/* 使用者資訊與登出按鈕 */}
         <div style={{
           display: 'flex',
@@ -375,6 +439,30 @@ function App() {
             <i className="fas fa-sign-out-alt" style={{ marginRight: '6px' }}></i>
             登出
           </button>
+=======
+        <div className="auth-section">
+          {session ? (
+            <div className="user-info">
+              <button 
+                onClick={() => setShowProfile(true)} 
+                className="user-name"
+                title="點擊編輯個人資料"
+              >
+                <i className="fas fa-user"></i>
+                {getUserDisplayName()}
+              </button>
+              <button onClick={handleLogout} className="btn-logout">
+                <i className="fas fa-sign-out-alt"></i>
+                登出
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setShowAuth(true)} className="btn-login">
+              <i className="fas fa-user-circle"></i>
+              登入 / 註冊
+            </button>
+          )}
+>>>>>>> Stashed changes
         </div>
       </header>
 
@@ -443,6 +531,29 @@ function App() {
       )}
 
       {results && !loading && <TripResults data={results} />}
+
+      {showAuth && (
+        <AuthForm 
+          onClose={() => setShowAuth(false)}
+          onSuccess={() => {
+            console.log('✅ 認證成功');
+          }}
+        />
+      )}
+
+      {showProfile && session && (
+        <ProfileEditor 
+          session={session}
+          onClose={() => setShowProfile(false)}
+          onSuccess={() => {
+            console.log('✅ 個人資料更新成功');
+            // 重新獲取 session 以更新顯示
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              setSession(session);
+            });
+          }}
+        />
+      )}
     </div>
   );
 }
