@@ -23,9 +23,16 @@ function HomePage() {
   return (
     <>
       <section className="relative h-screen flex items-center justify-center text-center overflow-hidden">
-        <video autoPlay loop muted playsInline className="absolute z-0 w-auto min-w-full min-h-full max-w-none object-cover">
-          <source src="https://cdn.pixabay.com/video/2023/02/24/151249-801224853_large.mp4" type="video/mp4"/>
-          Your browser does not support the video tag.
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="absolute inset-0 z-0 w-full h-full object-cover"
+          >
+            <source src="/bg.mp4" type="video/mp4" />
+            您的瀏覽器不支援影片標籤。
         </video>
         <div className="absolute inset-0 bg-black/50"></div>
         <div className="relative z-10 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">

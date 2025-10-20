@@ -17,6 +17,8 @@ function TripDetailPage({ session, onShowAuth }) {
   const [generating, setGenerating] = useState(false);
   const [streamingStatus, setStreamingStatus] = useState('');
   const [tripData, setTripData] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // 保存行程函數
   const handleSaveTrip = async () => {
@@ -52,6 +54,75 @@ function TripDetailPage({ session, onShowAuth }) {
     }
   };
 
+  // 回報行程問題函數 - 直接使用Supabase
+  const handleReportTrip = async (reportData) => {
+    if (!session) {
+      setShowLoginPrompt(true);
+      return;
+    }
+
+    if (!reportData.reportReason || !reportData.reportDetails) {
+      alert('請填寫完整的回報信息');
+      return;
+    }
+
+    setReportLoading(true);
+    try {
+      const selectedItinerary = tripData?.itineraries?.[selectedItineraryIndex] || null;
+      const promptCandidates = [
+        selectedItinerary?.prompt,
+        selectedItinerary?.debug_prompt,
+        tripData?.prompt,
+        tripData?.debug_prompt,
+        tripData?.question,
+        tripData?.user_query,
+        location.state?.prompt,
+        location.state?.debugPrompt,
+        location.state?.question
+      ].filter(Boolean);
+
+      const promptSource = promptCandidates[0] || '行程數據';
+
+      const reportPayload = {
+        ...tripData,
+        prompt: tripData?.prompt || promptSource,
+        question: tripData?.question || location.state?.question || promptSource,
+        selectedItineraryIndex,
+        selectedItinerary
+      };
+
+      // 直接使用Supabase保存回報數據，並附上生成 prompt
+      const { data, error } = await supabase
+        .from('trip_reports')
+        .insert({
+          user_id: session.user.id,
+          user_query: location.state?.question || tripData?.location || '未知問題',
+          prompt: promptSource,
+          generated_result: JSON.stringify(reportPayload || {}),
+          report_reason: reportData.reportReason,
+          report_details: reportData.reportDetails.trim(),
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('保存回報失敗:', error);
+        throw new Error('保存失敗');
+      }
+
+      console.log('回報成功:', data);
+      alert('感謝您的回報！我們會盡快處理這個問題。');
+      setShowReportModal(false);
+
+    } catch (error) {
+      console.error('回報行程失敗:', error);
+      alert(`回報失敗：${error.message || '請稍後再試'}`);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   // 處理串流請求
   const handleStreamRequest = async (sessionId, question, useRAG = true) => {
     return new Promise((resolve, reject) => {
@@ -59,6 +130,7 @@ function TripDetailPage({ session, onShowAuth }) {
       let startDate = null;
       let location = '';
       let days = 1;
+      let capturedPrompt = null;
 
       fetch(`${API_URL}/ask`, {
         method: 'POST',
@@ -112,6 +184,9 @@ function TripDetailPage({ session, onShowAuth }) {
                   startDate = eventData.data.dates[0];
                   setStreamingStatus(`正在規劃 ${location} ${days}天行程...`);
                 }
+                else if (eventType === 'debug_prompt' && eventData.prompt) {
+                  capturedPrompt = eventData.prompt;
+                }
                 else if (eventType === 'weather') {
                   if (eventData.status === 'fetching') {
                     setStreamingStatus('正在獲取天氣資訊...');
@@ -129,7 +204,8 @@ function TripDetailPage({ session, onShowAuth }) {
                     ...eventData.data,
                     weather_data: weatherData,
                     start_date: startDate,
-                    location: location
+                    location: location,
+                    prompt: capturedPrompt // 添加prompt數據
                   };
                   resolve(finalData);
                 }
@@ -177,11 +253,28 @@ function TripDetailPage({ session, onShowAuth }) {
         return;
       }
 
+      const debugPrompts = validResults
+        .map((result, index) => {
+          if (!result?.prompt) return null;
+          return {
+            index,
+            useRAG: result?.useRAG ?? undefined,
+            prompt: result.prompt
+          };
+        })
+        .filter(Boolean);
+
+      const primaryPrompt = debugPrompts[0]?.prompt || question;
+
       const combinedResults = {
         itineraries: validResults,
         weather_data: validResults[0]?.weather_data || {},
         start_date: validResults[0]?.start_date || null,
         location: validResults[0]?.location || '',
+        question,
+        user_query: question,
+        prompt: primaryPrompt,
+        debug_prompts: debugPrompts
       };
 
       setTripData(combinedResults);
@@ -216,7 +309,25 @@ function TripDetailPage({ session, onShowAuth }) {
 
           if (error) throw error;
           if (data) {
-            setTripData(data.trip_data);
+            const loadedTrip = data.trip_data || {};
+            const promptFallback =
+              loadedTrip.prompt ||
+              loadedTrip.debug_prompt ||
+              loadedTrip.question ||
+              loadedTrip.user_query ||
+              location.state?.question ||
+              '';
+
+            setTripData({
+              ...loadedTrip,
+              question: loadedTrip.question || location.state?.question || promptFallback,
+              user_query: loadedTrip.user_query || loadedTrip.question || location.state?.question || promptFallback,
+              prompt: promptFallback || loadedTrip.prompt
+            });
+
+            if (typeof loadedTrip.selectedItineraryIndex === 'number') {
+              setSelectedItineraryIndex(loadedTrip.selectedItineraryIndex);
+            }
           }
         } catch (error) {
           console.error('載入保存的行程失敗:', error);
@@ -231,12 +342,31 @@ function TripDetailPage({ session, onShowAuth }) {
       startGeneration(sessionId, question);
     } else if (initialTripData) {
       // 如果有現成的數據，直接設置
-      setTripData(initialTripData);
+      const promptFallback =
+        initialTripData.prompt ||
+        initialTripData.debug_prompt ||
+        initialTripData.question ||
+        initialTripData.user_query ||
+        location.state?.prompt ||
+        location.state?.debugPrompt ||
+        location.state?.question ||
+        '';
+
+      setTripData({
+        ...initialTripData,
+        question: initialTripData.question || location.state?.question || promptFallback,
+        user_query: initialTripData.user_query || initialTripData.question || location.state?.question || promptFallback,
+        prompt: promptFallback || initialTripData.prompt
+      });
+
+      if (typeof initialTripData.selectedItineraryIndex === 'number') {
+        setSelectedItineraryIndex(initialTripData.selectedItineraryIndex);
+      }
     } else {
       // 如果沒有數據，返回規劃頁面
       navigate('/plan');
     }
-  }, [isGenerating, sessionId, question, initialTripData, navigate, startGeneration, isSavedTrip, savedTripId, session]);
+  }, [isGenerating, sessionId, question, initialTripData, navigate, startGeneration, isSavedTrip, savedTripId, session, location]);
 
   if (generating) {
     return (
@@ -616,6 +746,13 @@ function TripDetailPage({ session, onShowAuth }) {
               <i className="fas fa-save"></i>
               保存行程
             </button>
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex-1 flex items-center justify-center gap-2 h-12 px-6 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-600 transition-colors"
+            >
+              <i className="fas fa-flag"></i>
+              回報問題
+            </button>
             <button className="flex-1 flex items-center justify-center gap-2 h-12 px-6 bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-lg text-sm font-bold hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors">
               <i className="fas fa-share"></i>
               分享行程
@@ -662,6 +799,101 @@ function TripDetailPage({ session, onShowAuth }) {
                     立即登入
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* 回報模態框 */}
+          {showReportModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 relative max-h-[90vh] overflow-y-auto">
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                >
+                  <i className="fas fa-times text-xl"></i>
+                </button>
+
+                <div className="mb-6">
+                  <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i className="fas fa-flag text-red-500 text-2xl"></i>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center">
+                    回報行程問題
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400 text-center">
+                    發現行程有問題嗎？請告訴我們詳細情況，幫助我們改進服務。
+                  </p>
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.target);
+                  handleReportTrip({
+                    reportReason: formData.get('reportReason'),
+                    reportDetails: formData.get('reportDetails')
+                  });
+                }} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      問題類型 <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="reportReason"
+                      required
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    >
+                      <option value="">請選擇問題類型</option>
+                      <option value="inaccurate_info">資訊不準確</option>
+                      <option value="missing_attractions">缺少重要景點</option>
+                      <option value="wrong_schedule">時間安排不合理</option>
+                      <option value="transport_issues">交通安排問題</option>
+                      <option value="weather_issues">天氣資訊錯誤</option>
+                      <option value="closed_attractions">景點已歇業</option>
+                      <option value="other">其他問題</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      詳細描述 <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      name="reportDetails"
+                      required
+                      placeholder="請詳細描述您發現的問題..."
+                      rows={4}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowReportModal(false)}
+                      className="flex-1 px-4 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={reportLoading}
+                      className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {reportLoading ? (
+                        <>
+                          <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                          提交中...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-paper-plane"></i>
+                          提交回報
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
