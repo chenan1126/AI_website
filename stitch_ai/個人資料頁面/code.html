@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<title>Stitch Design</title>
+<link href="data:image/x-icon;base64," rel="icon" type="image/x-icon"/>
+<link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect"/>
+<link as="style" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Space+Grotesk:wght@400;500;700" onload="this.rel='stylesheet'" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#13a4ec",
+            "background-light": "#f6f7f8",
+            "background-dark": "#101c22",
+          },
+          fontFamily: {
+            "display": ["Space Grotesk"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "1rem",
+            "xl": "1.5rem",
+            "full": "9999px"
+          },
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings:
+        'FILL' 0,
+        'wght' 400,
+        'GRAD' 0,
+        'opsz' 24
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-zinc-900 dark:text-zinc-200">
+<div class="relative flex min-h-screen w-full flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-zinc-200 dark:border-zinc-800 px-10 py-3">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-zinc-900 dark:text-white">
+<svg class="h-6 w-6 text-primary" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M24 4C25.7818 14.2173 33.7827 22.2182 44 24C33.7827 25.7818 25.7818 33.7827 24 44C22.2182 33.7827 14.2173 25.7818 4 24C14.2173 22.2182 22.2182 14.2173 24 4Z" fill="currentColor"></path>
+</svg>
+<h2 class="text-lg font-bold">Journey Planner</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-primary dark:hover:text-primary transition-colors" href="#">Explore</a>
+<a class="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-primary dark:hover:text-primary transition-colors" href="#">Plan</a>
+<a class="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-primary dark:hover:text-primary transition-colors" href="#">Trips</a>
+<a class="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-primary dark:hover:text-primary transition-colors" href="#">Inbox</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 dark:text-zinc-400">search</span>
+<input class="form-input w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800 bg-background-light dark:bg-background-dark focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent h-10 pl-10 pr-4 text-sm" placeholder="Search" value=""/>
+</div>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDNRGPePWNky6pcAq_t01wmPq0KnZbtKPhBeSL_uM2R9VnYykwHFumk-iMz28XEuQa92sjVc5aQRwgtnWrx_AsRu_Ak9GBYg3WAyZOH5eKxHN1mQGnoaJP2_oF5SHzE4P296VXZPocHWLUCnMNVpCpL_eg1QIU67f9BmQ_Na5R3tl3284l9_u09Gq5r12E2ft-Iii85DKAXAkDpkMDvqnALMt57C54BlsSjVfS-oqd2-2cDhbBMX_cZ2jJ1G53YsT7que4XgS5xvZQ");'></div>
+</div>
+</header>
+<main class="flex flex-1 container mx-auto px-4 py-8">
+<aside class="w-80 flex-shrink-0 pr-8 space-y-6">
+<div class="flex flex-col items-center p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full w-32 h-32 mb-4" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuClbe-68MjR4_Ju0lmiD9jkFE0elp-HNjO2Y1vvn_2kN2kBTMUJgH08Ug8siasC136bi7F-vWgLWIBhV2uuIlgJaWi2E1A9Q8Z5iHGRyD4koOTE8UnUqBCc4OEiblFMGUmZZwXvgxZId5WBkDIyVu2uiYwBHEqtxTEpculw3EsxLguIPZaq4gIAxNuzKi-JNrJ3OQZQXf2Ir50gOKF8dwrx_UwX67SLBlfA7vWKEIxaHVHCIcOkJN9N-GSRgMIplOfkDjD27-Oeb-A");'></div>
+<p class="text-xl font-bold text-zinc-900 dark:text-white">Sophia Carter</p>
+<p class="text-sm text-zinc-500 dark:text-zinc-400">Joined in 2021</p>
+</div>
+<nav class="space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg bg-primary/10 text-primary font-semibold" href="#">
+<span class="material-symbols-outlined">person</span>
+<span>Profile</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span>Notifications</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">security</span>
+<span>Security</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">payment</span>
+<span>Payments</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Preferences</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">card_giftcard</span>
+<span>Referrals</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">help</span>
+<span>Help</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span>Log out</span>
+</a>
+</nav>
+</aside>
+<div class="flex-1 space-y-8">
+<div class="p-6 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50">
+<h2 class="text-2xl font-bold mb-6 text-zinc-900 dark:text-white">Personal info</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div>
+<label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1" for="full-name">Full name</label>
+<input class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-700 bg-background-light dark:bg-background-dark focus:ring-primary focus:border-primary" id="full-name" type="text"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1" for="email">Email address</label>
+<input class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-700 bg-background-light dark:bg-background-dark focus:ring-primary focus:border-primary" id="email" type="email"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1" for="phone">Phone number</label>
+<input class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-700 bg-background-light dark:bg-background-dark focus:ring-primary focus:border-primary" id="phone" type="tel"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1" for="location">Location</label>
+<input class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-700 bg-background-light dark:bg-background-dark focus:ring-primary focus:border-primary" id="location" type="text"/>
+</div>
+</div>
+<div class="mt-6 flex justify-end">
+<button class="flex items-center justify-center rounded-lg h-10 px-5 bg-primary text-white text-sm font-bold tracking-wide hover:bg-primary/90 transition-colors">
+              Save changes
+            </button>
+</div>
+</div>
+<div class="p-6 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50">
+<h2 class="text-2xl font-bold mb-6 text-zinc-900 dark:text-white">Password</h2>
+<div class="space-y-6 max-w-md">
+<div>
+<label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1" for="current-password">Current password</label>
+<input class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-700 bg-background-light dark:bg-background-dark focus:ring-primary focus:border-primary" id="current-password" placeholder="Enter current password" type="password"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1" for="new-password">New password</label>
+<input class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-700 bg-background-light dark:bg-background-dark focus:ring-primary focus:border-primary" id="new-password" placeholder="Enter new password" type="password"/>
+</div>
+<div>
+<label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1" for="confirm-password">Confirm new password</label>
+<input class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-700 bg-background-light dark:bg-background-dark focus:ring-primary focus:border-primary" id="confirm-password" placeholder="Confirm new password" type="password"/>
+</div>
+</div>
+<div class="mt-6 flex justify-end">
+<button class="flex items-center justify-center rounded-lg h-10 px-5 bg-primary text-white text-sm font-bold tracking-wide hover:bg-primary/90 transition-colors">
+              Change password
+            </button>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>JourneyCraft - AI Travel Planner</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200">
+<div class="flex flex-col min-h-screen">
+<header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800">
+<nav class="container mx-auto px-6 py-4 flex items-center justify-between">
+<div class="flex items-center gap-6">
+<a class="flex items-center gap-2" href="#">
+<svg class="h-8 w-8 text-primary" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_6_319)">
+<path d="M8.57829 8.57829C5.52816 11.6284 3.451 15.5145 2.60947 19.7452C1.76794 23.9758 2.19984 28.361 3.85056 32.3462C5.50128 36.3314 8.29667 39.7376 11.8832 42.134C15.4698 44.5305 19.6865 45.8096 24 45.8096C28.3135 45.8096 32.5302 44.5305 36.1168 42.134C39.7033 39.7375 42.4987 36.3314 44.1494 32.3462C45.8002 28.361 46.2321 23.9758 45.3905 19.7452C44.549 15.5145 42.4718 11.6284 39.4217 8.57829L24 24L8.57829 8.57829Z" fill="currentColor"></path>
+</g>
+<defs>
+<clipPath id="clip0_6_319"><rect fill="white" height="48" width="48"></rect></clipPath>
+</defs>
+</svg>
+<span class="text-xl font-bold text-slate-900 dark:text-white">JourneyCraft</span>
+</a>
+<div class="hidden md:flex items-center gap-6 text-sm font-medium">
+<a class="hover:text-primary transition-colors" href="#">Explore</a>
+<a class="text-primary font-bold" href="#">Plan</a>
+<a class="hover:text-primary transition-colors" href="#">Trips</a>
+<a class="hover:text-primary transition-colors" href="#">Inbox</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400">notifications</span>
+</button>
+<div class="h-10 w-10 rounded-full bg-cover bg-center" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDZJMiDRetJUqky9PpaBS9jTxVkfm1K8JZdDMs1hVIeXLUVxv6nDcaAdYMqfjSuod8b8MeD0srNAKOORXOC0Wb4D40LkQpb5SCn8JgbCrK0bAUUrNqcqHVyTDzDMOnJGXho-SgjJB-L-EApjU7xdV1Ta9VUKNWWLOpB4EQX8UoE2CoxrrIX1YQGKBpBQjnL9g3t7vuDZQxWH6GTDKTCb3SGLukUc7ihX6_CXiJR_XW5K-ce7jy34QNRVeUA6zjhjuPuHpflH59a3k4");'></div>
+</div>
+</nav>
+</header>
+<main class="flex-grow container mx-auto px-6 py-8 md:py-16">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-16">
+<div class="lg:col-span-2 flex flex-col justify-center">
+<div class="space-y-8 max-w-2xl mx-auto">
+<div class="text-center">
+<h1 class="text-4xl font-bold text-slate-900 dark:text-white">Describe your perfect trip</h1>
+<p class="mt-2 text-slate-600 dark:text-slate-400">Tell us your travel dreams, and our AI will bring them to life.</p>
+</div>
+<div class="relative">
+<textarea class="w-full h-48 p-4 text-base bg-white dark:bg-background-dark border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition resize-none" placeholder="For example: I want to go to Kyoto, Japan for 5 days. I love historical sites and local food, and my budget is moderate."></textarea>
+<button class="absolute bottom-4 right-4 flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-white text-base font-bold hover:opacity-90 transition-opacity shadow-lg shadow-primary/30">
+<span class="material-symbols-outlined">auto_awesome</span>
+<span>Generate</span>
+</button>
+</div>
+<div>
+<p class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-3">Or get inspired by some examples:</p>
+<div class="flex flex-wrap gap-3">
+<button class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-200/60 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">"A week in Paris, focusing on art museums and cafes."</button>
+<button class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-200/60 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">"Family-friendly beach vacation in Thailand."</button>
+<button class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-200/60 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">"Backpacking through Southeast Asia for a month on a budget."</button>
+</div>
+</div>
+</div>
+</div>
+<div class="hidden lg:block bg-white dark:bg-background-dark border border-slate-200 dark:border-slate-800 rounded-xl p-6">
+<div class="flex flex-col h-full">
+<h3 class="text-lg font-bold text-slate-900 dark:text-white mb-4">Trip Preview</h3>
+<div class="flex-grow flex flex-col items-center justify-center text-center bg-slate-100 dark:bg-slate-900/50 rounded-lg p-6">
+<div class="p-4 bg-primary/10 rounded-full">
+<span class="material-symbols-outlined text-4xl text-primary">dynamic_feed</span>
+</div>
+<h4 class="mt-4 text-md font-bold text-slate-800 dark:text-slate-200">Your AI-generated itinerary will appear here</h4>
+<p class="mt-1 text-sm text-slate-600 dark:text-slate-400">As you describe your trip, we'll generate suggestions in real-time.</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

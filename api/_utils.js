@@ -418,8 +418,8 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
             // 提取地址組件（按台灣地址格式排序）
             const country = components.find(c => c.types.includes('country'))?.long_name || '';
             const city = components.find(c => c.types.includes('administrative_area_level_1'))?.long_name || '';
-            const district = components.find(c => c.types.includes('administrative_area_level_3'))?.long_name || '';
-            const neighborhood = components.find(c => c.types.includes('neighborhood') || c.types.includes('sublocality_level_2'))?.long_name || '';
+            const district = components.find(c => c.types.includes('administrative_area_level_2'))?.long_name || ''; // 台灣的區是 administrative_area_level_2
+            const neighborhood = components.find(c => c.types.includes('neighborhood') || c.types.includes('sublocality_level_2') || c.types.includes('administrative_area_level_3'))?.long_name || '';
             const route = components.find(c => c.types.includes('route'))?.long_name || '';
             const streetNumber = components.find(c => c.types.includes('street_number'))?.long_name || '';
             const postalCode = components.find(c => c.types.includes('postal_code'))?.long_name || '';

@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Header from './components/Header'
+import Footer from './components/Footer'
 import HomePage from './pages/HomePage'
 import PlannerPage from './pages/PlannerPage'
-import TripDetailPage from './pages/TripDetailPage'
-import ProfilePage from './pages/ProfilePage'
 import AuthForm from './components/AuthForm'
+import ProfileEditor from './components/ProfileEditor'
 import { supabase } from './supabaseClient'
 import './App.css'
 
 function App() {
   const [session, setSession] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   // 監聽認證狀態變化
   useEffect(() => {
@@ -30,17 +31,11 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleShowAuth = () => {
-    setShowAuth(true);
-  };
-
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       console.log('✅ 登出成功');
-      // 登出後重載頁面以清除所有狀態
-      window.location.reload();
     } catch (error) {
       console.error('❌ 登出失敗:', error);
     }
@@ -48,10 +43,11 @@ function App() {
 
   return (
     <Router>
-      <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark text-text-light dark:text-text-dark antialiased">
+      <div className="min-h-screen flex flex-col bg-background-light dark:bg-background-dark">
         <Header 
           session={session}
           onShowAuth={() => setShowAuth(true)}
+          onShowProfile={() => setShowProfile(true)}
           onLogout={handleLogout}
         />
         
@@ -59,10 +55,10 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/plan" element={<PlannerPage />} />
-            <Route path="/trip-detail" element={<TripDetailPage session={session} onShowAuth={handleShowAuth} />} />
-            <Route path="/profile" element={<ProfilePage session={session} onShowAuth={handleShowAuth} />} />
           </Routes>
         </main>
+
+        <Footer />
 
         {/* Modals */}
         {showAuth && (
@@ -71,8 +67,20 @@ function App() {
             onSuccess={() => {
               console.log('✅ 認證成功');
               setShowAuth(false);
-              // 登入後重載頁面以更新所有狀態
-              window.location.reload();
+            }}
+          />
+        )}
+
+        {showProfile && session && (
+          <ProfileEditor 
+            session={session}
+            onClose={() => setShowProfile(false)}
+            onSuccess={() => {
+              console.log('✅ 個人資料更新成功');
+              supabase.auth.getSession().then(({ data: { session } }) => {
+                setSession(session);
+              });
+              setShowProfile(false);
             }}
           />
         )}

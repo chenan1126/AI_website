@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import WeatherCard from './WeatherCard';
 import MapView from './MapView';
 
 function TripResults({ data }) {
+  const navigate = useNavigate();
   const [dayIndices, setDayIndices] = React.useState({});
   const [selectedItinerary, setSelectedItinerary] = React.useState(null);
   const [selectedDay, setSelectedDay] = React.useState(1); // 新增：當前選擇的天數
@@ -12,8 +14,15 @@ function TripResults({ data }) {
   }
 
   const handleItinerarySelect = (index) => {
-    setSelectedItinerary(index);
-    setSelectedDay(1); // 選擇行程時重置為第1天
+    // 跳轉到 TripDetailPage，並傳遞選擇的行程數據
+    navigate('/trip-detail', {
+      state: {
+        tripData: {
+          ...data,
+          selectedItineraryIndex: index
+        }
+      }
+    });
   };
 
   const handleResetSelection = () => {
@@ -25,189 +34,100 @@ function TripResults({ data }) {
   const renderLocation = (section, index, totalSections) => {
     if (!section || !section.location) return null;
     return (
-      <div key={index} style={{ marginBottom: '25px' }}>
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <div style={{ minWidth: '80px', textAlign: 'center' }}>
-            <div style={{
-              background: '#6366f1',
-              color: 'white',
-              padding: '8px 12px',
-              borderRadius: '20px',
-              fontSize: '14px',
-              fontWeight: '500',
-              marginBottom: '10px',
-              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.2)'
-            }}>{section.time || '時間未定'}</div>
-            <div style={{
-              width: '12px',
-              height: '12px',
-              background: '#6366f1',
-              borderRadius: '50%',
-              margin: '0 auto',
-              border: '3px solid #fff',
-              boxShadow: '0 0 0 4px rgba(99, 102, 241, 0.1)'
-            }}></div>
+      <div key={index} className="mb-6">
+        <div className="flex gap-4">
+          <div className="min-w-20 text-center">
+            <div className="bg-primary text-white px-3 py-2 rounded-full text-sm font-medium mb-2.5 shadow-lg shadow-primary/20">
+              {section.time || '時間未定'}
+            </div>
+            <div className="w-3 h-3 bg-primary rounded-full mx-auto border-2 border-white shadow-sm"></div>
             {index < totalSections - 1 && (
-              <div style={{
-                width: '2px',
-                height: '100%',
-                minHeight: '50px',
-                background: '#e2e8f0',
-                margin: '5px auto',
-                borderRadius: '1px'
-              }}></div>
+              <div className="w-0.5 h-full min-h-12 bg-slate-200 dark:bg-slate-700 mx-auto mt-1.5 rounded-sm"></div>
             )}
           </div>
-          <div className="activity-card" style={{
-            flex: 1,
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '12px',
-            padding: '25px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            minHeight: '200px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            transition: 'all 0.2s ease',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-            e.currentTarget.style.transform = 'translateY(-2px)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-            e.currentTarget.style.transform = 'translateY(0)';
-          }}>
+          <div className="activity-card flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm min-h-48 flex flex-col justify-between transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 relative overflow-hidden">
             {/* 威爾遜綜合評分 - 右上角 */}
             {section.maps_data?.wilson_score !== undefined && section.maps_data?.wilson_score !== null && (
-              <div style={{ 
-                position: 'absolute',
-                top: '15px',
-                right: '15px',
-                padding: '6px 12px',
-                background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)',
-                borderRadius: '20px',
-                color: 'white',
-                fontSize: '13px',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 2px 4px rgba(76, 175, 80, 0.3)',
-                zIndex: 10
-              }}>
+              <div className="absolute top-4 right-4 px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-semibold rounded-full flex items-center gap-1.5 shadow-lg shadow-green-500/30 z-10">
                 <i className="fas fa-award"></i>
                 <span>綜合評分: {section.maps_data.wilson_score.toFixed(1)}/5.0</span>
               </div>
             )}
-            
-            <h3 style={{ color: '#1e293b', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
-              <i className="fas fa-map-marker-alt"></i>
+
+            <h3 className="text-slate-900 dark:text-white mb-2.5 flex items-center gap-2 font-semibold">
+              <i className="fas fa-map-marker-alt text-primary"></i>
               {section.location}
               {section.warning && (
-                <span style={{ 
-                  color: section.closure_type === 'permanent' ? '#dc2626' : '#ea580c', 
-                  fontSize: '12px', 
-                  fontWeight: 'normal',
-                  background: section.closure_type === 'permanent' ? '#fef2f2' : '#fff7ed',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: section.closure_type === 'permanent' ? '1px solid #fecaca' : '1px solid #fed7aa'
-                }}>
+                <span className={`text-xs font-normal px-2 py-0.5 rounded border ${
+                  section.closure_type === 'permanent'
+                    ? 'text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-900/20 dark:border-red-800'
+                    : 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-900/20 dark:border-orange-800'
+                }`}>
                   <i className="fas fa-exclamation-triangle"></i> {section.warning}
                 </span>
               )}
             </h3>
 
             {(section.address || (section.maps_data && section.maps_data.address)) && (
-              <div style={{ color: '#666', fontSize: '14px', marginBottom: '2px', display: 'flex', alignItems: 'start', gap: '6px' }}>
-                <i className="fas fa-location-arrow" style={{ marginTop: '3px' }}></i>
+              <div className="text-slate-600 dark:text-slate-400 text-sm mb-0.5 flex items-start gap-1.5">
+                <i className="fas fa-location-arrow mt-0.5 text-slate-400"></i>
                 <span>{section.maps_data && section.maps_data.address ? section.maps_data.address : section.address}</span>
               </div>
             )}
-            
+
             {/* Google 評分資訊與威爾遜綜合評分 */}
             {section.maps_data && (section.maps_data.rating || section.rating) && (
-              <div style={{ 
-                marginBottom: '15px',
-                display: 'flex', 
-                alignItems: 'flex-start', 
-                gap: '20px',
-                flexWrap: 'wrap'
-              }}>
+              <div className="mb-4 flex items-start gap-5 flex-wrap">
                 {/* Google 星級評分與評論數（垂直排列） */}
-                <div style={{ 
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px'
-                }}>
+                <div className="flex flex-col gap-1">
                   {/* 星星評分 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ 
-                      color: '#ff9800', 
-                      fontSize: '24px',
-                      lineHeight: '1',
-                      letterSpacing: '2px'
-                    }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-yellow-400 text-xl leading-none tracking-wider">
                       {'★'.repeat(Math.floor(section.maps_data?.rating || section.rating || 0))}
                       {'☆'.repeat(5 - Math.floor(section.maps_data?.rating || section.rating || 0))}
                     </span>
-                    <span style={{ 
-                      color: '#e65100', 
-                      fontSize: '18px',
-                      fontWeight: '700'
-                    }}>
+                    <span className="text-orange-600 text-lg font-bold">
                       {(section.maps_data?.rating || section.rating || 0).toFixed(1)}
                     </span>
                   </div>
-                  
+
                   {/* 評論數（在星星下方） */}
                   {section.maps_data?.user_ratings_total && (
-                    <div style={{ 
-                      color: '#666', 
-                      fontSize: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      paddingLeft: '2px'
-                    }}>
-                      <i className="fas fa-comment-dots" style={{ color: '#999', fontSize: '11px' }}></i>
+                    <div className="text-slate-500 text-xs flex items-center gap-1 pl-0.5">
+                      <i className="fas fa-comment-dots text-slate-400 text-xs"></i>
                       <span>Google 地圖上有：{section.maps_data.user_ratings_total.toLocaleString()} 則評論</span>
                     </div>
                   )}
                 </div>
               </div>
             )}
-            
+
             {section.details && section.details.length > 0 && (
               <div>
-                <h4 style={{ color: '#333', fontSize: '16px', marginBottom: '10px' }}>
-                  <i className="fas fa-info-circle"></i> 活動詳情
+                <h4 className="text-slate-800 dark:text-slate-200 text-base mb-2.5 flex items-center gap-2">
+                  <i className="fas fa-info-circle text-primary"></i> 活動詳情
                 </h4>
-                <ul style={{ paddingLeft: '20px', color: '#555' }}>
+                <ul className="pl-5 text-slate-600 dark:text-slate-400">
                   {section.details.map((detail, i) => (
-                    <li key={i} style={{ marginBottom: '5px' }}>{detail}</li>
+                    <li key={i} className="mb-1">{detail}</li>
                   ))}
                 </ul>
               </div>
             )}
             {section.travel_info && (
-              <div style={{
-                marginTop: '15px',
-                padding: '10px',
-                background: 'linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%)',
-                borderLeft: '4px solid #2196f3',
-                borderRadius: '4px'
-              }}>
-                <div style={{ fontWeight: 'bold', color: '#1565c0', marginBottom: '5px' }}>
+              <div className="mt-4 p-2.5 bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 border-l-4 border-blue-500 rounded">
+                <div className="font-bold text-blue-800 dark:text-blue-300 mb-1">
                   <i className="fas fa-route"></i> {section.travel_info.from} → {section.travel_info.to}
                 </div>
-                <div style={{ display: 'flex', gap: '15px', marginTop: '8px', fontSize: '13px' }}>
-                  <span><i className="fas fa-road" style={{ color: '#ff9800', marginRight: '5px' }}></i>距離: <strong>{section.travel_info.distance}</strong></span>
-                  <span><i className="fas fa-clock" style={{ color: '#9c27b0', marginRight: '5px' }}></i>時間: <strong>{section.travel_info.duration}</strong></span>
+                <div className="flex gap-4 mt-2 text-xs">
+                  <span className="flex items-center gap-1">
+                    <i className="fas fa-road text-orange-500"></i>
+                    <strong>距離: {section.travel_info.distance}</strong>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <i className="fas fa-clock text-purple-500"></i>
+                    <strong>時間: {section.travel_info.duration}</strong>
+                  </span>
                 </div>
               </div>
             )}
@@ -238,126 +158,71 @@ function TripResults({ data }) {
     const currentDayIndex = dayIndices[index] || 0;
     const currentDay = days[currentDayIndex] || days[0];
     return (
-      <div key={index} className="trip-card"
+      <div key={index} className={`trip-card bg-white dark:bg-slate-800 rounded-xl p-7.5 mb-6.25 shadow-sm border-2 dark:border-slate-700 min-h-[600px] flex flex-col transition-all duration-200 cursor-pointer relative ${
+        isSelectionMode ? 'border-slate-200 dark:border-slate-600' : 'border-slate-200 dark:border-slate-700'
+      }`}
         onClick={isSelectionMode ? () => handleItinerarySelect(index) : undefined}
         style={{
-          background: '#fff',
-          borderRadius: '12px',
-          padding: '30px',
-          marginBottom: '25px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          border: isSelectionMode ? '2px solid #e2e8f0' : '1px solid #e2e8f0',
-          minHeight: '600px',
-          display: 'flex',
-          flexDirection: 'column',
-          transition: 'all 0.2s ease',
-          cursor: isSelectionMode ? 'pointer' : 'default',
           animation: `fadeInUp 0.6s ease-out ${index * 0.1}s forwards`,
           opacity: 0,
-          transform: 'translateY(20px)',
-          position: 'relative'
+          transform: 'translateY(20px)'
         }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        e.currentTarget.style.transform = 'translateY(-2px)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-        e.currentTarget.style.transform = 'translateY(0)';
-      }}>
-        <div className="trip-title-section" style={{ marginBottom: '20px' }}>
-          <h2 style={{ color: '#1e293b', marginBottom: '15px', fontWeight: '600' }}>
+        onMouseEnter={(e) => {
+          e.currentTarget.style.boxShadow = '0 16px 48px rgba(0,0,0,0.15)';
+          e.currentTarget.style.transform = 'translateY(-2px)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+          e.currentTarget.style.transform = 'translateY(0)';
+        }}>
+        <div className="trip-title-section mb-5">
+          <h2 className="text-slate-900 dark:text-white mb-4 font-semibold">
             {itinerary.title || `行程方案 ${index + 1}`}
             {isSelectionMode && (
-              <span style={{
-                display: 'inline-block',
-                marginLeft: '10px',
-                background: '#6366f1',
-                color: 'white',
-                padding: '4px 8px',
-                borderRadius: '12px',
-                fontSize: '12px',
-                fontWeight: '500'
-              }}>
+              <span className="inline-block ml-2.5 bg-primary text-white px-2 py-0.5 rounded-full text-xs font-medium">
                 可選擇
               </span>
             )}
           </h2>
-          
+
           {/* 生成方式說明 */}
           {itinerary.generationMethod && (
-            <div style={{
-              background: itinerary.useRAG ? '#f0fdf4' : '#faf5ff',
-              border: itinerary.useRAG ? '1px solid #86efac' : '1px solid #d8b4fe',
-              borderRadius: '8px',
-              padding: '10px 14px',
-              marginBottom: '12px',
-              fontSize: '13px',
-              color: '#64748b',
-              display: 'flex',
-              alignItems: 'start',
-              gap: '8px'
-            }}>
-              <i className={itinerary.useRAG ? 'fas fa-check-circle' : 'fas fa-info-circle'} 
-                 style={{ color: itinerary.useRAG ? '#10b981' : '#8b5cf6', marginTop: '2px' }}></i>
+            <div className={`rounded-lg p-3.5 mb-3 text-xs text-slate-600 dark:text-slate-400 flex items-start gap-2 ${
+              itinerary.useRAG ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800'
+            }`}>
+              <i className={`mt-0.5 ${itinerary.useRAG ? 'fas fa-check-circle text-green-500' : 'fas fa-info-circle text-purple-500'}`}></i>
               <div>
-                <strong style={{ color: '#334155' }}>
+                <strong className="text-slate-800 dark:text-slate-200">
                   {itinerary.useRAG ? '真實景點資料' : 'AI 創意推薦'}:
                 </strong>
                 {' '}
-                {itinerary.useRAG 
+                {itinerary.useRAG
                   ? '此行程基於我們的 11,078 筆真實景點和餐廳資料庫，所有地點都經過驗證，包含真實地址、電話和營業時間。'
                   : '此行程由 AI 根據您的需求創意生成，可能包含更多樣化的建議，但部分地點需要您自行驗證。'
                 }
               </div>
             </div>
           )}
-          
+
           {itinerary.recommendation_score && (
-            <div style={{
-              background: itinerary.recommendation_score >= 4.5 ? '#4caf50' : 
-                         itinerary.recommendation_score >= 4.0 ? '#8bc34a' : '#ff9800',
-              color: 'white',
-              padding: '8px 12px',
-              borderRadius: '20px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontWeight: 'bold',
-              marginBottom: '10px'
-            }}>
+            <div className={`inline-flex items-center gap-1.5 font-bold mb-2.5 px-3 py-2 rounded-full text-white text-sm ${
+              itinerary.recommendation_score >= 4.5 ? 'bg-green-500' :
+              itinerary.recommendation_score >= 4.0 ? 'bg-green-400' : 'bg-orange-500'
+            }`}>
               <i className="fas fa-star"></i>
               推薦指數: {itinerary.recommendation_score}/5
             </div>
           )}
           {(itinerary.playing_time_display || itinerary.travel_ratio_display) && (
-            <div style={{ marginTop: '10px', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+            <div className="mt-2.5 flex gap-4 flex-wrap">
               {itinerary.playing_time_display && (
-                <div style={{
-                  background: '#e3f2fd',
-                  color: '#1976d2',
-                  padding: '6px 10px',
-                  borderRadius: '15px',
-                  fontSize: '0.9rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
+                <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 px-2.5 py-1.5 rounded-full text-sm inline-flex items-center gap-1">
                   <i className="fas fa-clock"></i>
                   遊玩時間: {itinerary.playing_time_display}
                 </div>
               )}
               {itinerary.travel_ratio_display && (
-                <div style={{
-                  background: '#fff3e0',
-                  color: '#f57c00',
-                  padding: '6px 10px',
-                  borderRadius: '15px',
-                  fontSize: '0.9rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
+                <div className="bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300 px-2.5 py-1.5 rounded-full text-sm inline-flex items-center gap-1">
                   <i className="fas fa-route"></i>
                   交通時間佔比: {itinerary.travel_ratio_display}
                 </div>
@@ -365,33 +230,11 @@ function TripResults({ data }) {
             </div>
           )}
         </div>
-        
+
         {isMultiDay && (
-          <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
+          <div className="mb-4 flex items-center justify-center gap-4">
             <button
-              className="nav-btn"
-              style={{
-                padding: '10px 20px',
-                borderRadius: '8px',
-                border: '1px solid #e2e8f0',
-                background: '#fff',
-                color: '#6366f1',
-                cursor: 'pointer',
-                fontWeight: '500',
-                fontSize: '14px',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#6366f1';
-                e.currentTarget.style.color = '#fff';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#fff';
-                e.currentTarget.style.color = '#6366f1';
-                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-              }}
+              className="nav-btn px-5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-primary cursor-pointer font-medium text-sm transition-all duration-200 shadow-sm hover:shadow-lg hover:bg-primary hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => {
                 const newDayIndex = Math.max((dayIndices[index] || 0) - 1, 0);
                 setDayIndices(prev => ({...prev, [index]: newDayIndex}));
@@ -399,39 +242,11 @@ function TripResults({ data }) {
               }}
               disabled={(dayIndices[index] || 0) === 0}
             >上一天</button>
-            <span style={{
-              fontWeight: '500',
-              color: '#1e293b',
-              fontSize: '16px',
-              padding: '8px 16px',
-              background: '#f8fafc',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0'
-            }}>第 {parseInt(currentDay)} 天 / 共 {days.length} 天</span>
+            <span className="font-medium text-slate-900 dark:text-white text-base px-4 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600">
+              第 {parseInt(currentDay)} 天 / 共 {days.length} 天
+            </span>
             <button
-              className="nav-btn"
-              style={{
-                padding: '10px 20px',
-                borderRadius: '8px',
-                border: '1px solid #e2e8f0',
-                background: '#fff',
-                color: '#6366f1',
-                cursor: 'pointer',
-                fontWeight: '500',
-                fontSize: '14px',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#6366f1';
-                e.currentTarget.style.color = '#fff';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#fff';
-                e.currentTarget.style.color = '#6366f1';
-                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-              }}
+              className="nav-btn px-5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-primary cursor-pointer font-medium text-sm transition-all duration-200 shadow-sm hover:shadow-lg hover:bg-primary hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => {
                 const newDayIndex = Math.min((dayIndices[index] || 0) + 1, days.length - 1);
                 setDayIndices(prev => ({...prev, [index]: newDayIndex}));
@@ -441,7 +256,7 @@ function TripResults({ data }) {
             >下一天</button>
           </div>
         )}
-        <div className="timeline" style={{ marginTop: '20px' }}>
+        <div className="timeline mt-5">
           {(isMultiDay
             ? sectionsByDate[currentDay]
             : itinerary.sections
@@ -449,13 +264,11 @@ function TripResults({ data }) {
         </div>
       </div>
     );
-  };
-
-  return (
+  };  return (
     <div className="response-wrapper">
       {/* 顯示天氣卡片 - 在最上方 */}
       {data.weather_data && data.weather_data.length > 0 && (
-        <div style={{ marginBottom: '30px' }}>
+        <div className="mb-8">
           <WeatherCard
             weatherData={data.weather_data}
             startDate={data.start_date}
@@ -469,43 +282,25 @@ function TripResults({ data }) {
       {selectedItinerary !== null && data.itineraries && data.itineraries.length > 0 && (() => {
         const selectedItineraryData = data.itineraries[selectedItinerary];
         const sections = selectedItineraryData.sections || [];
-        
+
         // 計算總天數
         const totalDays = Math.max(...sections.map(s => s.day || 1));
-        
+
         // 過濾出當前選擇天數的景點
         const dayData = {
           ...selectedItineraryData,
           sections: sections.filter(s => (s.day || 1) === selectedDay)
         };
-        
+
         return (
-          <div style={{ marginBottom: '30px' }}>
+          <div className="mb-8">
             {/* 地圖容器 */}
-            <div style={{ 
-              height: '500px',
-              borderRadius: '12px',
-              overflow: 'hidden',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              position: 'relative'
-            }}>
+            <div className="h-[500px] rounded-xl overflow-hidden shadow-lg relative">
               <MapView itineraries={[dayData]} />
-              
+
               {/* 顯示當前天數標籤 */}
               {totalDays > 1 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '15px',
-                  right: '15px',
-                  background: 'rgba(99, 102, 241, 0.9)',
-                  color: 'white',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  fontWeight: '600',
-                  fontSize: '14px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                  zIndex: 1000
-                }}>
+                <div className="absolute top-4 right-4 bg-primary/90 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow-lg">
                   第 {selectedDay} 天行程
                 </div>
               )}
@@ -513,37 +308,27 @@ function TripResults({ data }) {
           </div>
         );
       })()}
-      
+
       {data.itineraries.length > 1 && selectedItinerary === null && (
-        <div style={{ textAlign: 'center', marginBottom: '20px', padding: '20px', background: '#f8fafc', borderRadius: '8px' }}>
-          <h3 style={{ color: '#1e293b', marginBottom: '10px' }}>請選擇一個行程方案</h3>
-          <p style={{ color: '#64748b' }}>我們為您生成了兩個不同的行程建議，請點擊選擇您喜歡的方案</p>
+        <div className="text-center mb-5 p-5 bg-slate-100 dark:bg-slate-800 rounded-lg">
+          <h3 className="text-slate-900 dark:text-white mb-2.5">請選擇一個行程方案</h3>
+          <p className="text-slate-600 dark:text-slate-400">我們為您生成了兩個不同的行程建議，請點擊選擇您喜歡的方案</p>
         </div>
       )}
 
       {selectedItinerary !== null && (
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <div className="text-center mb-5">
           <button
             onClick={handleResetSelection}
-            style={{
-              background: '#6366f1',
-              color: 'white',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
+            className="bg-primary text-white border-none px-5 py-2.5 rounded-md cursor-pointer text-sm flex items-center gap-2 mx-auto"
           >
             <i className="fas fa-arrow-left"></i> 返回選擇其他方案
           </button>
         </div>
       )}
 
-      <div className="itineraries-container" style={{
-        display: 'grid',
-        gridTemplateColumns: selectedItinerary === null && data.itineraries.length > 1 ? 'repeat(2, 1fr)' : '1fr',
-        gap: '20px'
+      <div className="itineraries-container grid gap-5" style={{
+        gridTemplateColumns: selectedItinerary === null && data.itineraries.length > 1 ? 'repeat(2, 1fr)' : '1fr'
       }}>
         {data.itineraries
           .filter((_, index) => selectedItinerary === null || selectedItinerary === index)

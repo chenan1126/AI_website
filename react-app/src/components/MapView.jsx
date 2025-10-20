@@ -11,6 +11,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+// 自定義CSS來控制Leaflet z-index
+const customCSS = `
+  .leaflet-popup-content-wrapper {
+    z-index: 35 !important;
+  }
+  .leaflet-popup-tip {
+    z-index: 35 !important;
+  }
+  .leaflet-popup {
+    z-index: 35 !important;
+  }
+`;
+
 const MapView = ({ itineraries }) => {
   // 從行程中提取所有地點
   const locations = useMemo(() => {
@@ -106,21 +119,15 @@ const MapView = ({ itineraries }) => {
 
   if (locations.length === 0) {
     return (
-      <div style={{ 
-        height: '100%', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f3f4f6',
-        borderRadius: '12px'
-      }}>
-        <p style={{ color: '#6b7280' }}>🗺️ 沒有可顯示的地點</p>
+      <div className="h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-xl">
+        <p className="text-gray-500 dark:text-gray-400">🗺️ 沒有可顯示的地點</p>
       </div>
     );
   }
 
   return (
-    <div style={{ height: '100%', width: '100%', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+    <div className="h-full w-full rounded-xl overflow-hidden relative">
+      <style dangerouslySetInnerHTML={{ __html: customCSS }} />
       <MapContainer
         center={center}
         zoom={12}
@@ -155,41 +162,20 @@ const MapView = ({ itineraries }) => {
               icon={createCustomIcon(color, location.actIndex + 1)}
             >
               <Popup>
-                <div style={{ padding: '5px', minWidth: '200px' }}>
-                  <h3 style={{ 
-                    margin: '0 0 8px 0', 
-                    fontSize: '16px',
-                    color: '#1f2937',
-                    fontWeight: '600'
-                  }}>
+                <div className="p-2 min-w-[200px]">
+                  <h3 className="m-0 mb-2 text-base text-gray-900 dark:text-gray-100 font-semibold">
                     {location.location}
                   </h3>
-                  <div style={{ 
-                    fontSize: '13px', 
-                    color: '#6b7280',
-                    marginBottom: '8px'
-                  }}>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                     <strong>時間：</strong>{location.time || '未指定'}
                   </div>
                   {location.description && (
-                    <div style={{ 
-                      fontSize: '13px', 
-                      color: '#4b5563',
-                      lineHeight: '1.5',
-                      marginBottom: '8px'
-                    }}>
+                    <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed mb-2">
                       {location.description}
                     </div>
                   )}
                   {location.maps_data?.rating && (
-                    <div style={{ 
-                      padding: '6px 10px',
-                      background: '#fef3c7',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      color: '#92400e',
-                      textAlign: 'center'
-                    }}>
+                    <div className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs text-yellow-800 dark:text-yellow-200 text-center">
                       ⭐ {location.maps_data.rating.toFixed(1)} / 5.0
                     </div>
                   )}
@@ -201,40 +187,15 @@ const MapView = ({ itineraries }) => {
       </MapContainer>
 
       {/* 圖例 */}
-      <div style={{
-        position: 'absolute',
-        bottom: '20px',
-        left: '20px',
-        background: 'white',
-        padding: '12px 16px',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-        zIndex: 1000
-      }}>
-        <div style={{ 
-          fontSize: '13px', 
-          fontWeight: '600', 
-          marginBottom: '8px',
-          color: '#1f2937'
-        }}>
+      <div className="absolute bottom-5 left-5 bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg z-40">
+        <div className="text-sm font-semibold mb-2 text-gray-900 dark:text-gray-100">
           行程天數
         </div>
         {itineraries.map((itinerary, index) => (
-          <div key={index} style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px',
-            marginBottom: '4px'
-          }}>
-            <div style={{
-              width: '16px',
-              height: '16px',
-              borderRadius: '50%',
-              background: dayColors[index % dayColors.length],
-              border: '2px solid white',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-            }}></div>
-            <span style={{ fontSize: '12px', color: '#4b5563' }}>
+          <div key={index} className="flex items-center gap-2 mb-1">
+            <div className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                 style={{ backgroundColor: dayColors[index % dayColors.length] }}></div>
+            <span className="text-xs text-gray-700 dark:text-gray-300">
               {itinerary.day || `第 ${index + 1} 天`}
             </span>
           </div>

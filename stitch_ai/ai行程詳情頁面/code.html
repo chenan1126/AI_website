@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Wanderlust - AI Travel Planner</title>
+<link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect"/>
+<link as="style" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Space+Grotesk:wght@400;500;700" onload="this.rel='stylesheet'" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-gray-800 dark:text-gray-200">
+<div class="flex flex-col min-h-screen">
+<header class="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
+<div class="container mx-auto px-4 sm:px-6 lg:px-8">
+<div class="flex items-center justify-between h-16">
+<div class="flex items-center gap-4">
+<div class="text-primary size-7">
+<svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M44 11.2727C44 14.0109 39.8386 16.3957 33.69 17.6364C39.8386 18.877 44 21.2618 44 24C44 26.7382 39.8386 29.123 33.69 30.3636C39.8386 31.6043 44 33.9891 44 36.7273C44 40.7439 35.0457 44 24 44C12.9543 44 4 40.7439 4 36.7273C4 33.9891 8.16144 31.6043 14.31 30.3636C8.16144 29.123 4 26.7382 4 24C4 21.2618 8.16144 18.877 14.31 17.6364C8.16144 16.3957 4 14.0109 4 11.2727C4 7.25611 12.9543 4 24 4C35.0457 4 44 7.25611 44 11.2727Z" fill="currentColor"></path>
+</svg>
+</div>
+<h1 class="text-xl font-bold text-gray-900 dark:text-white">Wanderlust</h1>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Destinations</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Experiences</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Blog</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+<span class="material-symbols-outlined">
+                                language
+                            </span>
+</button>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuB_N7l4ecY8smXYSIof0EQ61XtJ6ANfcakYnBHQZbVUWZwKnxgVGtVvhrUJaFSSZQleJezjYjWIoAiT05qrRHWc0t_j7fs-ZWXAnTbeTchzR3X0G2Qf1mv5L_dLF4eFWIHAcZ_cmZ2WmW7ejO75vzKWDm5CRlUYj42ahSylGEXDqxUCcIhwj92cu-UDx5wnSa9fOYAxhmiSFEmb5T5fcBpgNSw23ESdFbonXE9-5hYxDt4S96a6hvX1XHSDVQv-58WPawgkf_Khl2c");'></div>
+</div>
+</div>
+</div>
+</header>
+<main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="max-w-4xl mx-auto">
+<div class="mb-8">
+<h2 class="text-4xl font-bold text-gray-900 dark:text-white">7-Day Trip to the Italian Coast</h2>
+<p class="text-gray-500 dark:text-gray-400 mt-1">Created by AI</p>
+</div>
+<div class="overflow-x-auto pb-4 mb-8">
+<div class="flex border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
+<a class="flex flex-col items-center justify-center border-b-2 border-primary text-primary px-4 py-3" href="#">
+<p class="text-sm font-bold">Day 1: Arrival in Rome</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-gray-500 hover:text-primary hover:border-primary/50 dark:text-gray-400 dark:hover:text-primary px-4 py-3 transition-colors" href="#">
+<p class="text-sm font-medium">Day 2: Ancient Rome</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-gray-500 hover:text-primary hover:border-primary/50 dark:text-gray-400 dark:hover:text-primary px-4 py-3 transition-colors" href="#">
+<p class="text-sm font-medium">Day 3: Vatican City</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-gray-500 hover:text-primary hover:border-primary/50 dark:text-gray-400 dark:hover:text-primary px-4 py-3 transition-colors" href="#">
+<p class="text-sm font-medium">Day 4: To Florence</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-gray-500 hover:text-primary hover:border-primary/50 dark:text-gray-400 dark:hover:text-primary px-4 py-3 transition-colors" href="#">
+<p class="text-sm font-medium">Day 5: Florence</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-gray-500 hover:text-primary hover:border-primary/50 dark:text-gray-400 dark:hover:text-primary px-4 py-3 transition-colors" href="#">
+<p class="text-sm font-medium">Day 6: Tuscany</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-gray-500 hover:text-primary hover:border-primary/50 dark:text-gray-400 dark:hover:text-primary px-4 py-3 transition-colors" href="#">
+<p class="text-sm font-medium">Day 7: Departure</p>
+</a>
+</div>
+</div>
+<div class="space-y-12">
+<section>
+<h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Day 1: Arrival in Rome</h3>
+<p class="text-base leading-relaxed">
+                            Arrive at Leonardo da Vinci Airport (FCO) in Rome. Transfer to your hotel in the city center. After settling in, take a leisurely stroll around the neighborhood to get acquainted with the local atmosphere. Enjoy a traditional Italian dinner at a nearby trattoria.
+                        </p>
+</section>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<section>
+<h4 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Accommodation</h4>
+<div class="bg-white dark:bg-gray-800/50 rounded-lg overflow-hidden shadow-sm">
+<div class="p-6">
+<p class="text-sm text-primary font-semibold">Hotel</p>
+<p class="text-lg font-bold text-gray-900 dark:text-white mt-1">Hotel Roma</p>
+<p class="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                                        A charming hotel in the heart of Rome, offering comfortable rooms and a rooftop terrace with stunning city views.
+                                    </p>
+</div>
+<div class="w-full bg-center bg-no-repeat aspect-video bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD_wmdd7BrXwg4DlmJNkHsGbKNgJ08uOaD-dFTDZ9PTME592OcQaIljzanDlE-vRf3wikdnwuYhevvtgJyBxtQftfqr69LeK3OkXWchtihG06OZ1AnBPS6wQkvITls2SoDp_pzpCKeKeKdPmX5pXBtfZYiiiVjjjjAaagsYGs0m4-VkQfX7bFBc5g1DJzm1BT6uIPZakYBk3Aj9P3cs6Na0Y1rEJSCBomiSoxFwqvOzJ5iq2qheTiY41OZ2LNiG6KqeCMPRWuaWQSc");'></div>
+</div>
+</section>
+<section>
+<h4 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Dinner</h4>
+<div class="bg-white dark:bg-gray-800/50 rounded-lg overflow-hidden shadow-sm">
+<div class="p-6">
+<p class="text-sm text-primary font-semibold">Restaurant</p>
+<p class="text-lg font-bold text-gray-900 dark:text-white mt-1">Trattoria del Sole</p>
+<p class="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                                        A cozy trattoria serving authentic Roman cuisine, known for its pasta dishes and friendly service.
+                                    </p>
+</div>
+<div class="w-full bg-center bg-no-repeat aspect-video bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCtgyU-YxTUdOr2RANkDma8rASHvCFUw8-9XRTs5IsuW3wnfjJpahVVPXEv1ifglyi1RLPWVcIVgyUu0j4ZpLh5t2Dbto8HuVRfXb1e_6AmLv_aoemcSYJFx1jhBvtmWUjcYn9H6DdJ47MQCrerTGNJY_jaR7DLQ_4KOeBRsVJyOjryfQnvySi3_XihmCYPFb1dOHK2b_XBOZw91QDjNv5N0Dd9mlM3b0QkhRtZVucF_CKkPxfyBZjD0UodqVkLR48YsAHFjbaJBlY");'></div>
+</div>
+</section>
+</div>
+<section>
+<h4 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Transportation</h4>
+<p class="text-base leading-relaxed">
+                            Airport to Hotel: Take the Leonardo Express train from FCO to Termini Station, then a taxi or metro to your hotel.
+                        </p>
+</section>
+<section>
+<h4 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Map</h4>
+<div class="aspect-video w-full rounded-lg overflow-hidden shadow-sm">
+<div class="w-full h-full bg-center bg-no-repeat bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBWD0QB71dduwocodcIBwI8v94Voi0MBWXt4oyhurLvJGo-Hd7rtDIGsHX_vIxA_FWi3XdzXihJVGVyPw2HVGMUgj7eDH0YIDSxPXefr8w7usEk_usqUbOiRI3gAFz3yU89YydXd2WyrSgQvTei2Zt1_eQawS3aulG-ojkPdRq6N_lp0HkNNsjEAzeZFKHVaTrQNZbWtJTFHagVfvhvT2H7xLB9xeofU3fOwO_7rVaj9k113sfeU_nlA-tsMP5eLyoUNMIqaaTXLYc");'></div>
+</div>
+</section>
+</div>
+<div class="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4">
+<button class="flex-1 flex items-center justify-center gap-2 h-12 px-6 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors">
+<span class="material-symbols-outlined text-base">edit</span>
+<span>Edit Trip</span>
+</button>
+<button class="flex-1 flex items-center justify-center gap-2 h-12 px-6 bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-lg text-sm font-bold hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors">
+<span class="material-symbols-outlined text-base">share</span>
+<span>Share Trip</span>
+</button>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

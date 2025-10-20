@@ -90,166 +90,58 @@ function WeatherCard({ weatherData, startDate, location, dayIndex = 0 }) {
   const dateString = `${targetDate.getMonth() + 1}/${targetDate.getDate()}`;
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-      borderRadius: '16px',
-      padding: '24px',
-      marginBottom: '20px',
-      border: '1px solid #e2e8f0',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-    }}>
-      <h3 style={{
-        color: '#1e293b',
-        marginBottom: '20px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        fontSize: '20px',
-        fontWeight: '600'
-      }}>
-        <i className="fas fa-sun" style={{ color: '#f59e0b' }}></i>
+    <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-900 rounded-xl p-6 mb-5 border border-slate-200 dark:border-gray-700 shadow-sm">
+      <h3 className="text-slate-900 dark:text-slate-100 mb-5 flex items-center gap-2.5 text-xl font-semibold">
+        <i className="fas fa-sun text-amber-500"></i>
         {location && `${location} `}{dateString} 天氣
       </h3>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '20px'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '15px'
-        }}>
-          <div style={{
-            fontSize: '48px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
+      <div className="flex items-center justify-between flex-wrap gap-5">
+        <div className="flex items-center gap-4">
+          <div className="text-5xl drop-shadow-sm">
             {selectedDayWeather.icon || '☀️'}
           </div>
           <div>
-            <div style={{
-              fontSize: '28px',
-              fontWeight: 'bold',
-              marginBottom: '5px',
-              color: '#1e293b',
-              textShadow: '0 1px 2px rgba(0,0,0,0.05)'
-            }}>
+            <div className="text-3xl font-bold mb-1 text-slate-900 dark:text-slate-100 drop-shadow-sm">
               {selectedDayWeather.temp && selectedDayWeather.temp !== '無資料' ? `${selectedDayWeather.temp}°C` : '無資料'}
             </div>
-            <div style={{
-              fontSize: '16px',
-              color: '#64748b',
-              textShadow: '0 1px 2px rgba(0,0,0,0.05)'
-            }}>
+            <div className="text-base text-slate-600 dark:text-slate-400 drop-shadow-sm">
               {selectedDayWeather.condition || '晴天'}
             </div>
           </div>
         </div>
-        <div style={{
-          display: 'flex',
-          gap: '20px',
-          flexWrap: 'wrap'
-        }}>
-          <div style={{
-            textAlign: 'center',
-            padding: '12px 16px',
-            background: 'rgba(255,255,255,0.8)',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}>
-            <div style={{
-              fontSize: '12px',
-              color: '#64748b',
-              marginBottom: '4px'
-            }}>最高溫</div>
-            <div style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              color: '#dc2626'
-            }}>
+        <div className="flex gap-5 flex-wrap">
+          <div className="text-center p-3 bg-white/80 dark:bg-gray-700/80 rounded-xl border border-slate-200 dark:border-gray-600 shadow-sm">
+            <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">最高溫</div>
+            <div className="text-lg font-bold text-red-600 dark:text-red-400">
               {selectedDayWeather.max_temp && selectedDayWeather.max_temp !== '無資料' ? `${selectedDayWeather.max_temp}°C` : '無資料'}
             </div>
           </div>
-          <div style={{
-            textAlign: 'center',
-            padding: '12px 16px',
-            background: 'rgba(255,255,255,0.8)',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}>
-            <div style={{
-              fontSize: '12px',
-              color: '#64748b',
-              marginBottom: '4px'
-            }}>最低溫</div>
-            <div style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              color: '#2563eb'
-            }}>
+          <div className="text-center p-3 bg-white/80 dark:bg-gray-700/80 rounded-xl border border-slate-200 dark:border-gray-600 shadow-sm">
+            <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">最低溫</div>
+            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
               {selectedDayWeather.min_temp && selectedDayWeather.min_temp !== '無資料' ? `${selectedDayWeather.min_temp}°C` : '無資料'}
             </div>
           </div>
-          <div style={{
-            textAlign: 'center',
-            padding: '12px 16px',
-            background: 'rgba(255,255,255,0.8)',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}>
-            <div style={{
-              fontSize: '12px',
-              color: '#64748b',
-              marginBottom: '4px'
-            }}>降雨機率</div>
-            <div style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              color: '#059669'
-            }}>
+          <div className="text-center p-3 bg-white/80 dark:bg-gray-700/80 rounded-xl border border-slate-200 dark:border-gray-600 shadow-sm">
+            <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">降雨機率</div>
+            <div className="text-lg font-bold text-green-600 dark:text-green-400">
               {selectedDayWeather.rain_chance && selectedDayWeather.rain_chance !== '無資料' ? `${selectedDayWeather.rain_chance}%` : '無資料'}
             </div>
           </div>
-          <div style={{
-            textAlign: 'center',
-            padding: '12px 16px',
-            background: 'rgba(255,255,255,0.8)',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}>
-            <div style={{
-              fontSize: '12px',
-              color: '#64748b',
-              marginBottom: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px'
-            }}>
-              <i className="fas fa-sun" style={{ fontSize: '11px' }}></i>
+          <div className="text-center p-3 bg-white/80 dark:bg-gray-700/80 rounded-xl border border-slate-200 dark:border-gray-600 shadow-sm">
+            <div className="text-xs text-slate-600 dark:text-slate-400 mb-1 flex items-center justify-center gap-1">
+              <i className="fas fa-sun text-xs"></i>
               紫外線指數
             </div>
-            <div style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              color: selectedDayWeather.uvi >= 8 ? '#dc2626' : 
-                     selectedDayWeather.uvi >= 6 ? '#f59e0b' : 
-                     selectedDayWeather.uvi >= 3 ? '#eab308' : '#059669'
-            }}>
+            <div className={`text-lg font-bold ${
+              selectedDayWeather.uvi >= 8 ? 'text-red-600 dark:text-red-400' : 
+              selectedDayWeather.uvi >= 6 ? 'text-amber-600 dark:text-amber-400' : 
+              selectedDayWeather.uvi >= 3 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'
+            }`}>
               {selectedDayWeather.uvi && selectedDayWeather.uvi !== '無資料' ? `${selectedDayWeather.uvi}` : '無資料'}
             </div>
             {selectedDayWeather.uv_exposure_level && (
-              <div style={{
-                fontSize: '11px',
-                color: '#64748b',
-                marginTop: '2px'
-              }}>
+              <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                 {selectedDayWeather.uv_exposure_level}
               </div>
             )}
@@ -257,25 +149,8 @@ function WeatherCard({ weatherData, startDate, location, dayIndex = 0 }) {
         </div>
       </div>
       {selectedDayWeather.description && selectedDayWeather.description !== '無特別天氣提醒。' && (
-        <div style={{
-          marginTop: '20px',
-          padding: '15px',
-          background: 'linear-gradient(135deg, #fff7e0 0%, #fff0e3 100%)',
-          borderRadius: '12px',
-      border: '1px solid #ffe0b2',
-          borderLeft: '5px solid #ff9800',
-          color: '#5d4037',
-          fontSize: '15px',
-          lineHeight: '1.6'
-        }}>
-          <h4 style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            color: '#e65100',
-            marginBottom: '8px',
-            fontWeight: '600'
-          }}>
+        <div className="mt-5 p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 rounded-xl border border-orange-200 dark:border-orange-700 border-l-4 border-l-orange-500 text-slate-800 dark:text-orange-100 text-sm leading-relaxed">
+          <h4 className="flex items-center gap-2 text-orange-700 dark:text-orange-300 mb-2 font-semibold">
             <i className="fas fa-exclamation-triangle"></i>
             天氣提醒
           </h4>
