@@ -36,8 +36,8 @@ function HomePage() {
         </video>
         <div className="absolute inset-0 bg-black/50"></div>
         <div className="relative z-10 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
-          <h1 className="font-serif text-5xl sm:text-7xl lg:text-8xl font-bold text-white tracking-tight animate-fade-in-up" style={{animationDelay: '0.8s'}}>
-            智慧規劃，探索世界
+            <h1 className="font-serif text-5xl sm:text-7xl lg:text-8xl font-bold text-white tracking-tight animate-fade-in-up whitespace-nowrap" style={{animationDelay: '0.8s'}}>
+            智慧規劃，探索臺灣
           </h1>
           <p className="mt-8 text-xl lg:text-2xl text-gray-200 max-w-2xl mx-auto animate-fade-in-up" style={{animationDelay: '1s'}}>
             讓 AI 為您打造專屬旅程。探索未知，發現驚喜，體驗前所未有的旅行。
