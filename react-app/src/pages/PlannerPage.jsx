@@ -4,13 +4,13 @@ import TripResults from '../components/TripResults'
 import { supabase } from '../supabaseClient'
 
 // API URL - 根據環境自動選擇
-const API_URL = import.meta.env.DEV ? 'http://localhost:3000/api' : '/api';
+const API_URL = '/api';
 
 // 範例提示語
 const EXAMPLE_PROMPTS = [
   "我想要去台南三天兩夜，喜歡古蹟和美食。",
   "10/23 我想要去花蓮看海，帶著家裡的老人家。",
-  "明天我想要去一趟台中，體驗當地文化和美食。"
+  "明天我想要去一趟嘉義，體驗當地文化和美食。"
 ];
 
 function PlannerPage() {
@@ -150,11 +150,13 @@ function PlannerPage() {
       return;
     }
 
-    // 立即跳轉到行程詳情頁面，顯示生成中狀態
-    const sessionId = 'session-' + Date.now();
+    // 整合用戶偏好設定到問題中
     const enhancedQuestion = integratePreferencesIntoPrompt(question.trim());
+    const sessionId = 'session-' + Date.now();
 
-    navigate('/trip-detail', {
+    // 直接跳轉到生成頁面，傳遞生成參數
+    const tripUrl = `/trip-detail?generating=true&sessionId=${sessionId}`;
+    navigate(tripUrl, {
       state: {
         generating: true,
         sessionId: sessionId,

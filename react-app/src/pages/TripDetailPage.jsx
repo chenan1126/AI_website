@@ -5,7 +5,7 @@ import MapView from '../components/MapView';
 import { supabase } from '../supabaseClient';
 
 // API URL - 根據環境自動選擇
-const API_URL = import.meta.env.DEV ? 'http://localhost:3000/api' : '/api';
+const API_URL = '/api';
 
 function TripDetailPage({ session, onShowAuth }) {
   const location = useLocation();
@@ -19,6 +19,7 @@ function TripDetailPage({ session, onShowAuth }) {
   const [tripData, setTripData] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [loadingTrip, setLoadingTrip] = useState(false); // 新增載入狀態
 
   // 保存行程函數
   const handleSaveTrip = async () => {
@@ -123,8 +124,20 @@ function TripDetailPage({ session, onShowAuth }) {
     }
   };
 
-  // 處理串流請求
-  const handleStreamRequest = async (sessionId, question, useRAG = true) => {
+  // 從路由狀態獲取數據
+  const initialTripData = location.state?.tripData;
+  const isGenerating = location.state?.generating;
+  const sessionId = location.state?.sessionId;
+  const question = location.state?.question;
+  const isSavedTrip = location.state?.isSavedTrip;
+  const savedTripId = location.state?.savedTripId;
+
+  // 從 URL 參數獲取 tripId
+  const urlParams = new URLSearchParams(window.location.search);
+  const tripId = urlParams.get('tripId');
+
+  // 開始生成行程
+  const startGeneration = useCallback(async (sessionId, question) => {
     return new Promise((resolve, reject) => {
       let weatherData = null;
       let startDate = null;
@@ -138,7 +151,7 @@ function TripDetailPage({ session, onShowAuth }) {
         body: JSON.stringify({
           session_id: sessionId,
           question: question,
-          useRAG: useRAG
+          useRAG: true
         }),
       })
         .then(async (response) => {
@@ -199,6 +212,7 @@ function TripDetailPage({ session, onShowAuth }) {
                   setStreamingStatus('AI 正在生成行程...');
                 }
                 else if (eventType === 'result') {
+                  console.log('🎯 接收到 result 事件，開始處理最終數據');
                   setStreamingStatus('行程規劃完成！');
                   const finalData = {
                     ...eventData.data,
@@ -207,6 +221,59 @@ function TripDetailPage({ session, onShowAuth }) {
                     location: location,
                     prompt: capturedPrompt // 添加prompt數據
                   };
+
+                  console.log('📦 最終行程數據結構:', {
+                    hasItineraries: !!finalData.itineraries,
+                    itinerariesCount: finalData.itineraries?.length || 0,
+                    location: finalData.location,
+                    weatherDataSize: JSON.stringify(finalData.weather_data).length,
+                    allKeys: Object.keys(finalData)
+                  });
+
+                  // 檢查數據完整性
+                  if (!finalData.itineraries || finalData.itineraries.length === 0) {
+                    console.error('❌ 行程數據缺少 itineraries:', finalData);
+                    reject(new Error('生成的行程數據無效'));
+                    return;
+                  }
+
+                  // 將生成的行程數據插入到 Supabase temp_trips 表
+                  try {
+                    console.log('🔄 開始插入行程數據到 Supabase...');
+                    console.log('📊 行程數據大小:', JSON.stringify(finalData).length, '字符');
+                    console.log('🆔 Session ID:', sessionId);
+
+                    const { data: insertedData, error: insertError } = await supabase
+                      .from('temp_trips')
+                      .insert({
+                        trip_data: finalData,
+                        session_id: sessionId
+                      })
+                      .select('id')
+                      .single();
+
+                    if (insertError) {
+                      console.error('❌ 插入臨時行程失敗:', insertError);
+                      console.error('❌ 錯誤詳情:', JSON.stringify(insertError, null, 2));
+                      reject(new Error('無法保存行程數據'));
+                      return;
+                    }
+
+                    console.log('✅ 行程數據已成功插入 Supabase，ID:', insertedData.id);
+
+                    // 更新 URL 以包含新的 tripId
+                    const newUrl = new URL(window.location);
+                    newUrl.searchParams.set('tripId', insertedData.id);
+                    newUrl.searchParams.delete('generating'); // 移除 generating 參數
+                    console.log('🔗 更新 URL 從:', window.location.href, '到:', newUrl.href);
+                    window.history.replaceState({}, '', newUrl);
+
+                  } catch (dbError) {
+                    console.error('數據庫操作失敗:', dbError);
+                    reject(new Error('數據庫操作失敗'));
+                    return;
+                  }
+
                   resolve(finalData);
                 }
                 else if (eventType === 'error') {
@@ -223,79 +290,78 @@ function TripDetailPage({ session, onShowAuth }) {
           reject(error);
         });
     });
-  };
-
-  // 監聽滾動事件
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollTop = window.scrollY;
-      setIsScrolled(scrollTop > 50);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // 開始生成行程
-  const startGeneration = useCallback(async (sessionId, question) => {
-    try {
-      const streamPromises = [
-        handleStreamRequest(sessionId, question, false),
-        handleStreamRequest(sessionId, question, true),
-      ];
 
-      const apiResults = await Promise.all(streamPromises);
-      const validResults = apiResults.filter(r => r !== null);
 
-      if (validResults.length === 0) {
-        setStreamingStatus('無法生成行程，請重試');
-        setGenerating(false);
-        return;
-      }
+  useEffect(() => {
+    // 如果有 tripId，優先從 URL 加載臨時行程
+    if (tripId) {
+      const loadTempTrip = async () => {
+        try {
+          setLoadingTrip(true);
+          setStreamingStatus('正在載入行程...');
 
-      const debugPrompts = validResults
-        .map((result, index) => {
-          if (!result?.prompt) return null;
-          return {
-            index,
-            useRAG: result?.useRAG ?? undefined,
-            prompt: result.prompt
-          };
-        })
-        .filter(Boolean);
+          const { data, error } = await supabase
+            .from('temp_trips')
+            .select('*')
+            .eq('id', tripId)
+            .single();
 
-      const primaryPrompt = debugPrompts[0]?.prompt || question;
+          if (error) throw error;
 
-      const combinedResults = {
-        itineraries: validResults,
-        weather_data: validResults[0]?.weather_data || {},
-        start_date: validResults[0]?.start_date || null,
-        location: validResults[0]?.location || '',
-        question,
-        user_query: question,
-        prompt: primaryPrompt,
-        debug_prompts: debugPrompts
+          if (data) {
+            console.log('📥 從 Supabase 載入的數據:', data);
+            console.log('📊 trip_data 結構:', data.trip_data);
+
+            if (data.trip_data && data.trip_data.itineraries && data.trip_data.itineraries.length > 0) {
+              // 有數據，直接顯示
+              const loadedTrip = data.trip_data;
+              console.log('✅ 數據有效，設置 tripData:', loadedTrip);
+
+              const promptFallback =
+                loadedTrip.prompt ||
+                loadedTrip.debug_prompt ||
+                loadedTrip.question ||
+                loadedTrip.user_query ||
+                '';
+
+              const finalTripData = {
+                ...loadedTrip,
+                question: loadedTrip.question || promptFallback,
+                user_query: loadedTrip.user_query || loadedTrip.question || promptFallback,
+                prompt: promptFallback || loadedTrip.prompt
+              };
+
+              console.log('🎯 最終設置的 tripData:', finalTripData);
+              setTripData(finalTripData);
+
+              if (typeof loadedTrip.selectedItineraryIndex === 'number') {
+                setSelectedItineraryIndex(loadedTrip.selectedItineraryIndex);
+              }
+
+              setStreamingStatus('');
+              setLoadingTrip(false);
+            } else {
+              console.warn('⚠️ 數據無效或沒有行程，重新導向到規劃頁面');
+              setLoadingTrip(false);
+              navigate('/plan');
+            }
+          } else {
+            throw new Error('行程數據不存在');
+          }
+        } catch (error) {
+          console.error('載入臨時行程失敗:', error);
+          setStreamingStatus('載入行程失敗，請重新生成');
+          setLoadingTrip(false);
+          navigate('/plan');
+        }
       };
 
-      setTripData(combinedResults);
-      setStreamingStatus('');
-      setGenerating(false);
-    } catch (err) {
-      console.error('請求失敗:', err);
-      setStreamingStatus(`生成行程失敗：${err.message || '請稍後再試'}`);
-      setGenerating(false);
+      loadTempTrip();
+      return;
     }
-  }, []);
 
-  // 從路由狀態獲取數據
-  const initialTripData = location.state?.tripData;
-  const isGenerating = location.state?.generating;
-  const sessionId = location.state?.sessionId;
-  const question = location.state?.question;
-  const isSavedTrip = location.state?.isSavedTrip;
-  const savedTripId = location.state?.savedTripId;
-
-  useEffect(() => {
     if (isSavedTrip && savedTripId && session?.user?.id) {
       // 從 Supabase 載入保存的行程
       const loadSavedTrip = async () => {
@@ -339,7 +405,19 @@ function TripDetailPage({ session, onShowAuth }) {
       // 如果正在生成，開始生成行程
       setGenerating(true);
       setStreamingStatus('正在處理您的請求...');
-      startGeneration(sessionId, question);
+      startGeneration(sessionId, question)
+        .then((generatedData) => {
+          console.log('✅ 行程生成完成，設置數據');
+          setTripData(generatedData);
+          setGenerating(false);
+          setStreamingStatus('');
+        })
+        .catch((error) => {
+          console.error('行程生成失敗:', error);
+          setStreamingStatus('行程生成失敗，請重新嘗試');
+          setGenerating(false);
+          navigate('/plan');
+        });
     } else if (initialTripData) {
       // 如果有現成的數據，直接設置
       const promptFallback =
@@ -366,7 +444,7 @@ function TripDetailPage({ session, onShowAuth }) {
       // 如果沒有數據，返回規劃頁面
       navigate('/plan');
     }
-  }, [isGenerating, sessionId, question, initialTripData, navigate, startGeneration, isSavedTrip, savedTripId, session, location]);
+  }, [tripId, isSavedTrip, savedTripId, session?.user?.id, isGenerating, sessionId, question, initialTripData, navigate, startGeneration, location.state?.debugPrompt, location.state?.prompt, location.state?.question]);
 
   if (generating) {
     return (
@@ -431,9 +509,41 @@ function TripDetailPage({ session, onShowAuth }) {
     );
   }
 
+  // 載入行程時顯示簡單的載入指示器
+  if (loadingTrip) {
+    return (
+      <div className={`min-h-screen bg-background-light dark:bg-background-dark transition-all duration-300 ${isScrolled ? 'pt-50' : 'pt-24'}`}>
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+                載入行程中
+              </h1>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 p-8 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+              <div className="text-center">
+                <p className="text-xl font-semibold text-blue-700 dark:text-blue-300">{streamingStatus}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!tripData || !tripData.itineraries || tripData.itineraries.length === 0) {
+    console.log('❌ 渲染檢查失敗:', {
+      hasTripData: !!tripData,
+      hasItineraries: !!(tripData && tripData.itineraries),
+      itinerariesLength: tripData?.itineraries?.length || 0,
+      tripDataKeys: tripData ? Object.keys(tripData) : []
+    });
     return null;
   }
+
+  console.log('✅ 通過渲染檢查，開始渲染行程');
 
   // 使用選擇的行程
   const itinerary = tripData.itineraries[selectedItineraryIndex];
@@ -747,15 +857,25 @@ function TripDetailPage({ session, onShowAuth }) {
               保存行程
             </button>
             <button
+              onClick={() => {
+                const shareUrl = window.location.href;
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                  alert('行程連結已複製到剪貼簿！');
+                }).catch(() => {
+                  alert(`分享連結：${shareUrl}`);
+                });
+              }}
+              className="flex-1 flex items-center justify-center gap-2 h-12 px-6 bg-blue-500 text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors"
+            >
+              <i className="fas fa-share"></i>
+              分享行程
+            </button>
+            <button
               onClick={() => setShowReportModal(true)}
               className="flex-1 flex items-center justify-center gap-2 h-12 px-6 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-600 transition-colors"
             >
               <i className="fas fa-flag"></i>
               回報問題
-            </button>
-            <button className="flex-1 flex items-center justify-center gap-2 h-12 px-6 bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-lg text-sm font-bold hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors">
-              <i className="fas fa-share"></i>
-              分享行程
             </button>
           </div>
 

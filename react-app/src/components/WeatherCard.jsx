@@ -35,11 +35,12 @@ function WeatherCard({ weatherData, startDate, location, dayIndex = 0 }) {
       allKeys: candidateWeather ? Object.keys(candidateWeather) : []
     });
     
-    if (candidateWeather && candidateWeather.condition) {
+    // 允許 "無資料" 作為有效的 condition，只要有 weather 對象就行
+    if (candidateWeather && typeof candidateWeather.condition !== 'undefined') {
       selectedDay = candidate;
       console.log('✅ 找到有效天氣數據（當前索引）');
     } else {
-      console.log('❌ 當前索引天氣數據無效:', candidateWeather === null ? 'weather 是 null' : '沒有 condition');
+      console.log('❌ 當前索引天氣數據無效:', candidateWeather === null ? 'weather 是 null' : '沒有 weather 對象');
     }
   }
   
@@ -56,7 +57,7 @@ function WeatherCard({ weatherData, startDate, location, dayIndex = 0 }) {
       });
       
       // 檢查 candidateWeather 是否有有效的天氣數據
-      if (candidateWeather && candidateWeather.condition) {
+      if (candidateWeather && typeof candidateWeather.condition !== 'undefined') {
         selectedDay = candidate;
         actualDayIndex = i;
         console.log(`✅ 找到有效天氣數據（索引 ${i}）`);
@@ -65,11 +66,29 @@ function WeatherCard({ weatherData, startDate, location, dayIndex = 0 }) {
     }
   }
   
-  // 如果還是沒有數據，返回 null
+  // 如果還是沒有數據，顯示無法獲取天氣資訊的消息
   if (!selectedDay) {
     console.log('❌ 天氣卡片未顯示，原因：所有日期的 weather 都是 null 或沒有 condition');
     console.log('💡 提示：請檢查後端日誌，查看天氣 API 調用和解析過程');
-    return null;
+    return (
+      <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-800 dark:to-gray-900 rounded-xl p-6 mb-5 border border-slate-200 dark:border-gray-700 shadow-sm">
+        <h3 className="text-slate-900 dark:text-slate-100 mb-5 flex items-center gap-2.5 text-xl font-semibold">
+          <i className="fas fa-cloud text-slate-500"></i>
+          {location && `${location} `}天氣資訊
+        </h3>
+        <div className="text-center py-8">
+          <div className="text-4xl mb-4 text-slate-400">
+            <i className="fas fa-cloud-sun"></i>
+          </div>
+          <p className="text-slate-600 dark:text-slate-400 text-lg">
+            天氣資訊暫時無法獲取
+          </p>
+          <p className="text-slate-500 dark:text-slate-500 text-sm mt-2">
+            可能是天氣 API 數據更新中，或該地區暫無預報資料
+          </p>
+        </div>
+      </div>
+    );
   }
   
   console.log('✅ 天氣卡片將顯示，selectedDay:', selectedDay);
@@ -102,10 +121,10 @@ function WeatherCard({ weatherData, startDate, location, dayIndex = 0 }) {
           </div>
           <div>
             <div className="text-3xl font-bold mb-1 text-slate-900 dark:text-slate-100 drop-shadow-sm">
-              {selectedDayWeather.temp && selectedDayWeather.temp !== '無資料' ? `${selectedDayWeather.temp}°C` : '無資料'}
+              {selectedDayWeather.temp && selectedDayWeather.temp !== '無資料' ? `${selectedDayWeather.temp}°C` : '暫無資料'}
             </div>
             <div className="text-base text-slate-600 dark:text-slate-400 drop-shadow-sm">
-              {selectedDayWeather.condition || '晴天'}
+              {selectedDayWeather.condition && selectedDayWeather.condition !== '無資料' ? selectedDayWeather.condition : '天氣資訊更新中'}
             </div>
           </div>
         </div>
@@ -113,19 +132,19 @@ function WeatherCard({ weatherData, startDate, location, dayIndex = 0 }) {
           <div className="text-center p-3 bg-white/80 dark:bg-gray-700/80 rounded-xl border border-slate-200 dark:border-gray-600 shadow-sm">
             <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">最高溫</div>
             <div className="text-lg font-bold text-red-600 dark:text-red-400">
-              {selectedDayWeather.max_temp && selectedDayWeather.max_temp !== '無資料' ? `${selectedDayWeather.max_temp}°C` : '無資料'}
+              {selectedDayWeather.max_temp && selectedDayWeather.max_temp !== '無資料' ? `${selectedDayWeather.max_temp}°C` : '暫無資料'}
             </div>
           </div>
           <div className="text-center p-3 bg-white/80 dark:bg-gray-700/80 rounded-xl border border-slate-200 dark:border-gray-600 shadow-sm">
             <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">最低溫</div>
             <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-              {selectedDayWeather.min_temp && selectedDayWeather.min_temp !== '無資料' ? `${selectedDayWeather.min_temp}°C` : '無資料'}
+              {selectedDayWeather.min_temp && selectedDayWeather.min_temp !== '無資料' ? `${selectedDayWeather.min_temp}°C` : '暫無資料'}
             </div>
           </div>
           <div className="text-center p-3 bg-white/80 dark:bg-gray-700/80 rounded-xl border border-slate-200 dark:border-gray-600 shadow-sm">
             <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">降雨機率</div>
             <div className="text-lg font-bold text-green-600 dark:text-green-400">
-              {selectedDayWeather.rain_chance && selectedDayWeather.rain_chance !== '無資料' ? `${selectedDayWeather.rain_chance}%` : '無資料'}
+              {selectedDayWeather.rain_chance && selectedDayWeather.rain_chance !== '無資料' ? `${selectedDayWeather.rain_chance}%` : '暫無資料'}
             </div>
           </div>
           <div className="text-center p-3 bg-white/80 dark:bg-gray-700/80 rounded-xl border border-slate-200 dark:border-gray-600 shadow-sm">
@@ -138,7 +157,7 @@ function WeatherCard({ weatherData, startDate, location, dayIndex = 0 }) {
               selectedDayWeather.uvi >= 6 ? 'text-amber-600 dark:text-amber-400' : 
               selectedDayWeather.uvi >= 3 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'
             }`}>
-              {selectedDayWeather.uvi && selectedDayWeather.uvi !== '無資料' ? `${selectedDayWeather.uvi}` : '無資料'}
+              {selectedDayWeather.uvi && selectedDayWeather.uvi !== '無資料' ? `${selectedDayWeather.uvi}` : '暫無資料'}
             </div>
             {selectedDayWeather.uv_exposure_level && (
               <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">

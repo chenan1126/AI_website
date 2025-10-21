@@ -1,6 +1,6 @@
 // api/ask.js
-import dotenv from 'dotenv';
-dotenv.config();
+// import dotenv from 'dotenv';
+// dotenv.config();
 
 import {
     getMultiDayWeatherSync,
@@ -358,17 +358,18 @@ function calculateTripStatistics(tripData) {
 
 
 export default async function handler(req, res) {
+    // 設置 CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
     // Respond to frontend health check
     if (req.method === 'GET') {
-        res.setHeader('Access-Control-Allow-Origin', '*');
         res.status(200).json({ status: 'ok', message: 'Backend is running.' });
         return;
     }
 
     if (req.method === 'OPTIONS') {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
         res.status(200).end();
         return;
     }
@@ -453,54 +454,80 @@ export default async function handler(req, res) {
             sendSseEvent(res, 'rag', { status: 'skipped', message: '使用純 AI 生成模式' });
         }
 
-        // 4. 建立增強版提示（包含 RAG 上下文，如果有的話）
+        // 4. 準備生成參數
         const finalQuestion = `請幫我規劃在「${locationName}」的「${tripDays}天」行程。原始需求是：「${naturalLanguageQuery}」`;
-        const prompt = buildPrompt(finalQuestion, locationName, tripDays, tripDates, weatherData, ragContext);
 
-        // --- DEBUG: 將完整的 prompt 送到前端 ---
-        sendSseEvent(res, 'debug_prompt', { prompt: prompt, useRAG: useRAG });
-        // -----------------------------------------
+        // 3. 生成兩個不同的行程方案
+        const generateItinerary = async (useRAGForGeneration, ragContextForGeneration) => {
+            console.log(`🎯 生成行程方案 - useRAG: ${useRAGForGeneration}`);
 
-        // 5. Gemini Streaming
-        sendSseEvent(res, 'generation', { status: 'starting' });
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
-        });
+            // 建立對應的提示
+            const prompt = buildPrompt(finalQuestion, locationName, tripDays, tripDates, weatherData, ragContextForGeneration);
 
-        const result = await model.generateContentStream({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.7,
-                topP: 0.95,
-                topK: 40,
+            // Gemini Streaming
+            const model = genAI.getGenerativeModel({
+                model: "gemini-2.5-flash",
+            });
+
+            const result = await model.generateContentStream({
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    temperature: 0.7,
+                    topP: 0.95,
+                    topK: 40,
+                }
+            });
+
+            let fullResponseText = '';
+            for await (const chunk of result.stream) {
+                const chunkText = chunk.text();
+                fullResponseText += chunkText;
             }
-        });
-        
-        let fullResponseText = '';
-        for await (const chunk of result.stream) {
-            const chunkText = chunk.text();
-            fullResponseText += chunkText;
-            sendSseEvent(res, 'generation', { status: 'generating', chunk: chunkText });
-        }
+
+            // Parse and Enrich
+            let tripData = JSON.parse(fullResponseText);
+            tripData = await enrichWithMapsData(tripData, locationName);
+
+            // Final Statistics
+            calculateTripStatistics(tripData);
+
+            // 加入標記
+            tripData.useRAG = useRAGForGeneration;
+            tripData.generationMethod = useRAGForGeneration ? 'RAG 增強（真實景點資料庫）' : '純 AI 生成';
+
+            return {
+                title: tripData.title || `${locationName} ${useRAGForGeneration ? '真實景點' : 'AI創意'} 行程`,
+                sections: tripData.sections || [],
+                useRAG: tripData.useRAG,
+                generationMethod: tripData.generationMethod,
+                playing_time_display: tripData.playing_time_display,
+                travel_ratio_display: tripData.travel_ratio_display,
+                total_travel_time_display: tripData.total_travel_time_display
+            };
+        };
+
+        sendSseEvent(res, 'generation', { status: 'starting' });
+
+        // 生成兩個行程方案
+        const [aiItinerary, ragItinerary] = await Promise.all([
+            generateItinerary(false, null), // 純AI生成
+            generateItinerary(true, ragContext) // RAG增強生成
+        ]);
+
         sendSseEvent(res, 'generation', { status: 'completed' });
 
-        // 5. Parse and Enrich
-        sendSseEvent(res, 'parsing_response', { status: 'parsing' });
-        let tripData = JSON.parse(fullResponseText);
+        // 組合最終數據
+        const formattedTripData = {
+            location: locationName,
+            start_date: tripDates[0],
+            weather_data: weatherArray,
+            question: naturalLanguageQuery,
+            prompt: `包含兩個行程方案：純AI生成和RAG增強生成`,
+            itineraries: [aiItinerary, ragItinerary]
+        };
 
-        sendSseEvent(res, 'maps', { status: 'fetching' });
-        tripData = await enrichWithMapsData(tripData, locationName);
-        sendSseEvent(res, 'maps', { status: 'completed' });
-
-        // 6. Final Statistics and Result
-        calculateTripStatistics(tripData);
-        
-        // 加入 RAG 使用標記
-        tripData.useRAG = useRAG;
-        tripData.generationMethod = useRAG ? 'RAG 增強（真實景點資料庫）' : '純 AI 生成';
-        
-        sendSseEvent(res, 'result', { data: tripData });
+        sendSseEvent(res, 'result', { data: formattedTripData });
 
         // 7. Done
         sendSseEvent(res, 'done', { status: 'complete' });

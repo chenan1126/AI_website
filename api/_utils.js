@@ -171,10 +171,16 @@ function getWeatherForDateFromForecast(data, dateStr) {
             let matchedSlots = 0;
             for (const slot of element.Time) {
                 const startTime = new Date(slot.StartTime);
+                const endTime = new Date(slot.EndTime);
                 
-                // 從 StartTime 中提取日期字串（YYYY-MM-DD），避免時區問題
+                // 從 StartTime 和 EndTime 中提取日期字串（YYYY-MM-DD），避免時區問題
                 const startDateStr = slot.StartTime.split('T')[0]; // 取 "2025-10-15"
-                const isDateMatch = startDateStr === dateStr;
+                const endDateStr = slot.EndTime.split('T')[0]; // 取 "2025-10-15"
+                
+                // 檢查目標日期是否在這個時間槽的範圍內
+                const targetDate = new Date(dateStr);
+                const isDateInRange = targetDate >= startTime && targetDate < endTime;
+                const isDateMatch = startDateStr === dateStr || endDateStr === dateStr || isDateInRange;
                 
                 if (isDateMatch) {
                     
@@ -212,8 +218,21 @@ function getWeatherForDateFromForecast(data, dateStr) {
         console.log(`[Weather Parser] 日期 ${dateStr} 共收集到 ${dateWeatherData.length} 筆天氣數據`);
 
         if (dateWeatherData.length === 0) {
-            console.warn(`[Weather Parser] 找不到 ${dateStr} 的天氣預報資料`);
-            return { error: `找不到 ${dateStr} 的天氣預報資料` };
+            console.warn(`[Weather Parser] 找不到 ${dateStr} 的天氣預報資料，返回默認數據`);
+            // 返回默認的天氣數據，而不是錯誤
+            return {
+                condition: '晴天',
+                temp: '25',
+                min_temp: '22',
+                max_temp: '28',
+                rain_chance: '10',
+                uvi: '5',
+                uv_exposure_level: '中等',
+                description: '天氣資訊暫時無法獲取，請以實際天氣為準。',
+                icon: '☀️',
+                date: dateStr,
+                is_default: true // 標記這是默認數據
+            };
         }
 
         // 統計數據
@@ -458,9 +477,9 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         console.log(`[Maps] 地點「${placeName}」的營業狀態: business_status=${businessStatus}, permanently_closed=${permanentlyClosed}`);
 
         if (businessStatus === 'CLOSED_PERMANENTLY' || permanentlyClosed === true) {
-            console.warn(`[Maps] 地點「${placeName}」已永久歇業`);
+            console.warn(`[Maps] 地點「${placeName}」可能暫停營業或歇業`);
             return { 
-                error: `已永久歇業`,
+                error: `可能暫停營業或歇業`,
                 is_closed: true,
                 closure_type: 'permanent'
             };

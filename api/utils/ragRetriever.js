@@ -3,8 +3,8 @@
  * 使用 Supabase Vector Database 檢索相關景點和餐廳
  */
 
-import dotenv from 'dotenv';
-dotenv.config();
+// import dotenv from 'dotenv';
+// dotenv.config();
 
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -13,7 +13,7 @@ import { optimizeItinerary, calculateItineraryDistance } from './geoOptimizer.js
 // 初始化 Supabase 客戶端
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // 初始化 Gemini AI

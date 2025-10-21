@@ -7,12 +7,11 @@ export default defineConfig({
   server: {
     // 開發服務器配置
     port: 5173,
-    // 可選：如果使用 proxy 方式（備選方案）
-    // proxy: {
-    //   '/api': {
-    //     target: 'http://localhost:3000',
-    //     changeOrigin: true,
-    //   }
-    // }
+    proxy: {
+      '/api': {
+        target: 'https://ai-website-hip8178z2-chena-fans-projects.vercel.app',
+        changeOrigin: true,
+      }
+    }
   }
 })

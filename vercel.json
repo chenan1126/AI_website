@@ -6,7 +6,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/react-app/index.html"
+      "destination": "/index.html"
     }
   ]
 }
