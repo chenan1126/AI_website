@@ -1,51 +1,47 @@
 
-import { enrichWithMapsData } from './_utils.js';
+import { addTravelTimes } from './_utils.js';
 
-export const config = {
-  runtime: 'edge',
-};
+export default async function handler(req, res) {
+    // 設置 CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-export default async function handler(req) {
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  try {
-    const { sections, location } = await req.json();
-
-    if (!sections || !Array.isArray(sections)) {
-      return new Response(JSON.stringify({ error: 'Invalid sections data' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
     }
 
-    // 建立一個臨時的 tripData 對象
-    const tripData = {
-      sections: sections,
-      location: location || '台灣'
-    };
+    if (req.method !== 'POST') {
+        res.status(405).json({ error: 'Method Not Allowed' });
+        return;
+    }
 
-    // 使用 enrichWithMapsData 重新計算交通時間
-    // 我們假設地點已經有 maps_data (如果沒有，它會嘗試獲取)
-    // 重點是 insertTravelTimes: true
-    const enrichedData = await enrichWithMapsData(tripData, tripData.location, { insertTravelTimes: true });
+    try {
+        const { sections, location } = req.body;
 
-    return new Response(JSON.stringify({ 
-      sections: enrichedData.sections 
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+        if (!sections || !Array.isArray(sections)) {
+            return res.status(400).json({ error: 'Invalid sections data' });
+        }
 
-  } catch (error) {
-    console.error('Calculate traffic error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+        console.log(`[Traffic] Calculating traffic for ${sections.length} sections in ${location || 'unknown location'}`);
+
+        // 建構一個符合 addTravelTimes 預期的 tripData 物件
+        const tripData = {
+            sections: sections,
+            location: location
+        };
+
+        // 計算交通時間
+        const enrichedTripData = await addTravelTimes(tripData);
+
+        res.status(200).json({ 
+            sections: enrichedTripData.sections,
+            message: 'Traffic calculation complete' 
+        });
+
+    } catch (error) {
+        console.error('[Traffic] Error calculating traffic:', error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+    }
 }

@@ -36,6 +36,109 @@ function TripDetailPage({ session, onShowAuth }) {
   const [attractionDetailModalOpen, setAttractionDetailModalOpen] = useState(false);
   const [selectedAttraction, setSelectedAttraction] = useState(null);
 
+  // 用於追蹤正在獲取詳情的景點，避免重複請求
+  const fetchingRef = React.useRef(new Set());
+
+  // 客戶端補充景點詳情 (Client-side Enrichment)
+  useEffect(() => {
+    if (!tripData || !tripData.itineraries) return;
+
+    const currentItinerary = tripData.itineraries[selectedItineraryIndex];
+    if (!currentItinerary || !currentItinerary.sections) return;
+
+    // 找出需要補充資料的景點
+    const sectionsToEnrich = currentItinerary.sections.map((section, index) => ({
+      section,
+      index
+    })).filter(({ section, index }) => {
+      const key = `${selectedItineraryIndex}-${index}-${section.location}`;
+      // 條件：不是交通時間、沒有詳細地圖資料、有地點名稱、且目前沒有正在獲取
+      return !section.is_travel_time && 
+             (!section.maps_data || !section.maps_data.google_maps_name) && 
+             section.location &&
+             !fetchingRef.current.has(key);
+    });
+
+    if (sectionsToEnrich.length === 0) return;
+
+    // 標記為正在獲取
+    sectionsToEnrich.forEach(({ section, index }) => {
+      const key = `${selectedItineraryIndex}-${index}-${section.location}`;
+      fetchingRef.current.add(key);
+    });
+
+    const enrichSection = async (item) => {
+      try {
+        const response = await fetch(`${API_URL}/get-place-details`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            placeName: item.section.location,
+            location: tripData.location
+          })
+        });
+        
+        if (!response.ok) return null;
+        const data = await response.json();
+        return { index: item.index, data };
+      } catch (e) {
+        console.error('Enrichment error:', e);
+        return null;
+      }
+    };
+
+    // 分批處理，每次 3 個請求
+    const processBatch = async () => {
+      const batchSize = 3;
+      for (let i = 0; i < sectionsToEnrich.length; i += batchSize) {
+        const batch = sectionsToEnrich.slice(i, i + batchSize);
+        const results = await Promise.all(batch.map(enrichSection));
+        
+        // 更新狀態
+        setTripData(prev => {
+          if (!prev) return prev;
+          const newItineraries = [...prev.itineraries];
+          // 確保 itinerary 存在
+          if (!newItineraries[selectedItineraryIndex]) return prev;
+
+          const newSections = [...newItineraries[selectedItineraryIndex].sections];
+          
+          let hasChanges = false;
+          results.forEach(result => {
+            if (result && result.data) {
+              const section = newSections[result.index];
+              // 合併 maps_data
+              newSections[result.index] = {
+                ...section,
+                maps_data: result.data.maps_data,
+                coordinates: result.data.coordinates,
+                // 處理歇業警告
+                warning: result.data.is_closed ? `注意：此地點可能已歇業` : section.warning,
+                closure_type: result.data.is_closed ? 'permanent' : section.closure_type
+              };
+              hasChanges = true;
+            }
+          });
+          
+          if (!hasChanges) return prev;
+          
+          newItineraries[selectedItineraryIndex] = {
+            ...newItineraries[selectedItineraryIndex],
+            sections: newSections
+          };
+          
+          return { ...prev, itineraries: newItineraries };
+        });
+        
+        // 稍微延遲一下，避免請求過於密集
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    };
+
+    processBatch();
+
+  }, [tripData, selectedItineraryIndex]);
+
   // 檢查地點是否在 RAG 來源中
   const isVerifiedLocation = useCallback((locationName) => {
     if (!tripData?.rag_raw_data) return false;
@@ -407,10 +510,11 @@ function TripDetailPage({ session, onShowAuth }) {
                   setStreamingStatus('行程規劃完成！');
                   const finalData = {
                     ...eventData.data,
-                    weather_data: weatherData,
-                    start_date: startDate,
-                    location: location,
-                    prompt: capturedPrompt // 添加prompt數據
+                    // 優先使用後端回傳的完整數據，如果沒有才使用串流過程中的數據
+                    weather_data: eventData.data.weather_data || weatherData,
+                    start_date: eventData.data.start_date || startDate,
+                    location: eventData.data.location || location,
+                    prompt: eventData.data.prompt || capturedPrompt // 添加prompt數據
                   };
 
                   /*
@@ -887,7 +991,7 @@ function TripDetailPage({ session, onShowAuth }) {
               </div>
             )}
 
-            {/* 威爾遜綜合評分 - 右上角 */}
+            {/* 威爾森綜合評分 - 右上角 */}
             {section.maps_data?.wilson_score !== undefined && section.maps_data?.wilson_score !== null && (
               <div className="absolute top-4 right-4 px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-semibold rounded-full flex items-center gap-1.5 shadow-lg shadow-green-500/30 z-10">
                 <i className="fas fa-award"></i>

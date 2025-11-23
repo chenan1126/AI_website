@@ -43,6 +43,24 @@
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const CWA_AUTH = process.env.CWA_API_KEY || 'CWA-F3FCE1AF-CFF8-4531-86AD-379B18FE38A2';
 
+/**
+ * 帶有超時功能的 fetch 包裝器
+ * @param {string} url 
+ * @param {object} options 
+ * @param {number} timeout 
+ * @returns {Promise<Response>}
+ */
+async function fetchWithTimeout(url, options = {}, timeout = 8000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        return response;
+    } finally {
+        clearTimeout(id);
+    }
+}
+
 // 城市名稱到天氣資料集 ID 的映射
 const CITY_MAPPING = {
     "台北": "F-D0047-063", "台北市": "F-D0047-063", "臺北": "F-D0047-063", "臺北市": "F-D0047-063",
@@ -115,7 +133,7 @@ async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
 
         // console.log(`[Weather API] 請求 URL: ${url.toString()}`);
 
-        const response = await fetch(url.toString(), { timeout: 10000 });
+        const response = await fetchWithTimeout(url.toString(), {}, 10000);
         if (!response.ok) {
             console.error(`[Weather API] HTTP 錯誤: ${response.status} ${response.statusText}`);
             const errorText = await response.text();
@@ -381,7 +399,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         findPlaceUrl.searchParams.append('language', 'zh-TW');
         findPlaceUrl.searchParams.append('key', GOOGLE_MAPS_API_KEY);
 
-        const searchResponse = await fetch(findPlaceUrl.toString());
+        const searchResponse = await fetchWithTimeout(findPlaceUrl.toString(), {}, 3000);
         const searchData = await searchResponse.json();
 
         if (searchData.status !== 'OK' || !searchData.candidates || searchData.candidates.length === 0) {
@@ -396,8 +414,9 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
             // console.log(`[Maps] 候選地點: ${candidate.name} - ${address}`);
             
             // 檢查地址是否包含目標城市（支援部分匹配）
-            const normalizedAddress = address.replace(/\s+/g, ''); // 移除所有空格
-            const normalizedLocation = location.replace(/\s+/g, ''); // 移除所有空格
+            // 統一將「臺」轉為「台」以進行比較
+            const normalizedAddress = address.replace(/\s+/g, '').replace(/臺/g, '台'); 
+            const normalizedLocation = location.replace(/\s+/g, '').replace(/臺/g, '台');
             
             // 檢查是否包含城市名稱的任何形式
             const cityVariants = [
@@ -434,7 +453,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         detailsUrl.searchParams.append('language', 'zh-TW');
         detailsUrl.searchParams.append('key', GOOGLE_MAPS_API_KEY);
 
-        const detailsResponse = await fetch(detailsUrl.toString());
+        const detailsResponse = await fetchWithTimeout(detailsUrl.toString(), {}, 3000);
         const detailsData = await detailsResponse.json();
 
         if (detailsData.status !== 'OK') {
@@ -646,7 +665,7 @@ export async function calculateRouteDistanceAndTimeSync(origin, destination, mod
         directionsUrl.searchParams.append('language', 'zh-TW');
         directionsUrl.searchParams.append('region', 'tw'); // 限制在台灣地區
 
-        const response = await fetch(directionsUrl.toString());
+        const response = await fetchWithTimeout(directionsUrl.toString());
         const data = await response.json();
 
         // console.log(`[Maps] API 回應狀態: ${data.status}`);
@@ -880,96 +899,103 @@ export function isLocationSpecific(location) {
 // ============================================
 
 /**
- * 為行程數據添加交通時間
+ * 為行程數據添加交通時間 (平行處理優化版)
  * @param {object} tripData - 行程數據 (需包含 maps_data)
  * @returns {Promise<object>} 添加交通時間後的行程數據
  */
 export async function addTravelTimes(tripData) {
     if (!tripData.sections) return tripData;
     
-    const sectionsWithTravel = [];
     const sections = tripData.sections;
+    const routeRequests = [];
 
-    for (let i = 0; i < sections.length; i++) {
+    // 1. 收集所有需要計算的路線
+    for (let i = 0; i < sections.length - 1; i++) {
         const currentSection = sections[i];
-        sectionsWithTravel.push(currentSection);
+        const nextSection = sections[i + 1];
 
-        // 如果不是最後一個項目，且下一個項目在同一天，則插入交通時間
-        if (i < sections.length - 1) {
-            const nextSection = sections[i + 1];
+        if (currentSection.day === nextSection.day && currentSection.location && nextSection.location) {
+            const originAddress = currentSection.maps_data?.address || currentSection.location;
+            const destAddress = nextSection.maps_data?.address || nextSection.location;
+            const fromName = currentSection.maps_data?.google_maps_name || currentSection.maps_data?.address || currentSection.location;
+            const toName = nextSection.maps_data?.google_maps_name || nextSection.maps_data?.address || nextSection.location;
 
-            if (currentSection.day === nextSection.day && currentSection.location && nextSection.location) {
-                // 使用Places API返回的地址，如果沒有地址則使用地點名稱
-                const originAddress = currentSection.maps_data?.address || currentSection.location;
-                const destAddress = nextSection.maps_data?.address || nextSection.location;
+            routeRequests.push({
+                index: i,
+                origin: originAddress,
+                destination: destAddress,
+                fromName,
+                toName,
+                day: currentSection.day,
+                currentLoc: currentSection.location,
+                nextLoc: nextSection.location
+            });
+        }
+    }
 
-                try {
-                    const routeData = await calculateRouteDistanceAndTimeSync(originAddress, destAddress);
-
-                    if (!routeData.error) {
-                        // 使用具體地址或Google Maps名稱，如果沒有則使用原始名稱
-                        const fromName = currentSection.maps_data?.google_maps_name || currentSection.maps_data?.address || currentSection.location;
-                        const toName = nextSection.maps_data?.google_maps_name || nextSection.maps_data?.address || nextSection.location;
-
-                        // 插入交通時間項目
-                        const travelSection = {
-                            time: `交通時間: 約 ${Math.round(routeData.duration_value / 60)} 分鐘`,
-                            location: `從${fromName}到${toName}的交通`,
-                            details: [`${routeData.mode === 'driving' ? '開車' : routeData.mode === 'transit' ? '大眾運輸' : '步行'}約 ${routeData.distance_text}`],
-                            day: currentSection.day,
-                            is_travel_time: true, // 標記這是交通時間項目
-                            travel_info: {
-                                from: fromName,
-                                to: toName,
-                                distance: routeData.distance_text || '',
-                                duration: routeData.duration_text || '',
-                                duration_value: routeData.duration_value || 0,
-                                mode: routeData.mode || 'driving'
-                            }
-                        };
-
-                        sectionsWithTravel.push(travelSection);
-                    } else {
-                        console.warn(`[Trip] 無法計算從 ${currentSection.location} 到 ${nextSection.location} 的交通時間: ${routeData.error}`);
-                        // 如果無法計算交通時間，插入一個預設的交通時間項目
-                        const travelSection = {
-                            time: `交通時間: 約 15 分鐘`,
-                            location: `從${currentSection.location}到${nextSection.location}的交通`,
-                            details: [`預估交通時間`],
-                            day: currentSection.day,
-                            is_travel_time: true,
-                            travel_info: {
-                                from: currentSection.location,
-                                to: nextSection.location,
-                                distance: '',
-                                duration: '約 15 分鐘',
-                                duration_value: 900, // 15分鐘 = 900秒
-                                mode: 'driving'
-                            }
-                        };
-                        sectionsWithTravel.push(travelSection);
-                    }
-                } catch (error) {
-                    console.error(`[Trip] 計算交通時間時發生錯誤: ${error.message}`);
-                    // 插入預設交通時間
-                    const travelSection = {
-                        time: `交通時間: 約 15 分鐘`,
-                        location: `從${currentSection.location}到${nextSection.location}的交通`,
-                        details: [`預估交通時間`],
-                        day: currentSection.day,
-                        is_travel_time: true,
-                        travel_info: {
-                            from: currentSection.location,
-                            to: nextSection.location,
-                            distance: '',
-                            duration: '約 15 分鐘',
-                            duration_value: 900,
-                            mode: 'driving'
-                        }
-                    };
-                    sectionsWithTravel.push(travelSection);
-                }
+    // 2. 平行執行所有路線計算
+    console.log(`[Trip] 平行計算 ${routeRequests.length} 條路線的交通時間...`);
+    const routeResults = await Promise.all(
+        routeRequests.map(async (req) => {
+            try {
+                const routeData = await calculateRouteDistanceAndTimeSync(req.origin, req.destination);
+                return { ...req, routeData };
+            } catch (error) {
+                console.error(`[Trip] 計算交通時間時發生錯誤: ${error.message}`);
+                return { ...req, error };
             }
+        })
+    );
+
+    // 3. 重組行程區段
+    const sectionsWithTravel = [];
+    for (let i = 0; i < sections.length; i++) {
+        sectionsWithTravel.push(sections[i]);
+        
+        // 檢查此索引是否有對應的路線結果
+        const result = routeResults.find(r => r.index === i);
+        if (result) {
+            let travelSection;
+            const { routeData, fromName, toName, day, currentLoc, nextLoc } = result;
+
+            if (routeData && !routeData.error && !result.error) {
+                travelSection = {
+                    time: `交通時間: 約 ${Math.round(routeData.duration_value / 60)} 分鐘`,
+                    location: `從${fromName}到${toName}的交通`,
+                    details: [`${routeData.mode === 'driving' ? '開車' : routeData.mode === 'transit' ? '大眾運輸' : '步行'}約 ${routeData.distance_text}`],
+                    day: day,
+                    is_travel_time: true,
+                    travel_info: {
+                        from: fromName,
+                        to: toName,
+                        distance: routeData.distance_text || '',
+                        duration: routeData.duration_text || '',
+                        duration_value: routeData.duration_value || 0,
+                        mode: routeData.mode || 'driving'
+                    }
+                };
+            } else {
+                // 錯誤處理或無法計算時的預設值
+                const errMessage = routeData?.error || result.error?.message || '未知錯誤';
+                console.warn(`[Trip] 無法計算從 ${currentLoc} 到 ${nextLoc} 的交通時間: ${errMessage}`);
+                
+                travelSection = {
+                    time: `交通時間: 約 15 分鐘`,
+                    location: `從${currentLoc}到${nextLoc}的交通`,
+                    details: [`預估交通時間`],
+                    day: day,
+                    is_travel_time: true,
+                    travel_info: {
+                        from: currentLoc,
+                        to: nextLoc,
+                        distance: '',
+                        duration: '約 15 分鐘',
+                        duration_value: 900,
+                        mode: 'driving'
+                    }
+                };
+            }
+            sectionsWithTravel.push(travelSection);
         }
     }
 
@@ -1051,6 +1077,86 @@ export async function enrichWithMapsData(tripData, cityLocation, options = { ins
     if (options.insertTravelTimes) {
         return await addTravelTimes(tripData);
     }
+
+    return tripData;
+}
+
+/**
+ * 僅獲取地點座標（輕量級查詢）
+ * @param {string} placeName - 景點名稱
+ * @param {string} [location="台灣"] - 地點偏好
+ * @returns {Promise<object>} 座標物件 { lat, lng } 或 null
+ */
+export async function getPlaceCoordinatesSync(placeName, location = "台灣") {
+    if (!GOOGLE_MAPS_API_KEY) return null;
+    
+    try {
+        const searchQuery = `${placeName} ${location}`;
+        const findPlaceUrl = new URL("https://maps.googleapis.com/maps/api/place/findplacefromtext/json");
+        findPlaceUrl.searchParams.append('input', searchQuery);
+        findPlaceUrl.searchParams.append('inputtype', 'textquery');
+        findPlaceUrl.searchParams.append('fields', 'geometry,name'); // 只請求 geometry 和 name
+        findPlaceUrl.searchParams.append('locationbias', 'region:tw');
+        findPlaceUrl.searchParams.append('language', 'zh-TW');
+        findPlaceUrl.searchParams.append('key', GOOGLE_MAPS_API_KEY);
+
+        const response = await fetchWithTimeout(findPlaceUrl.toString(), {}, 2000); // 短超時
+        const data = await response.json();
+
+        if (data.status === 'OK' && data.candidates && data.candidates.length > 0) {
+            const candidate = data.candidates[0];
+            if (candidate.geometry && candidate.geometry.location) {
+                return candidate.geometry.location;
+            }
+        }
+        return null;
+    } catch (e) {
+        console.warn(`[Maps] 獲取座標失敗 (${placeName}): ${e.message}`);
+        return null;
+    }
+}
+
+/**
+ * 為行程中缺少座標的地點補充座標（用於後端優化）
+ * @param {object} tripData - 行程數據
+ * @param {string} cityLocation - 城市
+ * @returns {Promise<object>} 更新後的行程數據
+ */
+export async function enrichWithCoordinates(tripData, cityLocation) {
+    if (!tripData.sections) return tripData;
+
+    // 找出缺少座標的地點
+    const missingCoordsPlaces = tripData.sections
+        .filter(s => (!s.lat || !s.lng) && (!s.coordinates || !s.coordinates.lat))
+        .map(s => s.location)
+        .filter((v, i, a) => a.indexOf(v) === i); // 去重
+
+    if (missingCoordsPlaces.length === 0) return tripData;
+
+    console.log(`[Maps] 正在為 ${missingCoordsPlaces.length} 個地點補充座標...`);
+
+    const coordsMap = {};
+    // 平行請求，但限制並發數以免觸發 API 限制（這裡簡單全並發，因為數量通常不多）
+    const promises = missingCoordsPlaces.map(place => 
+        getPlaceCoordinatesSync(place, cityLocation).then(coords => {
+            if (coords) coordsMap[place] = coords;
+        })
+    );
+
+    await Promise.all(promises);
+
+    // 更新行程
+    tripData.sections.forEach(section => {
+        if ((!section.lat || !section.lng) && coordsMap[section.location]) {
+            const coords = coordsMap[section.location];
+            section.lat = coords.lat;
+            section.lng = coords.lng;
+            // 確保 coordinates 結構也存在（前端可能用到）
+            if (!section.coordinates) {
+                section.coordinates = { lat: coords.lat, lng: coords.lng };
+            }
+        }
+    });
 
     return tripData;
 }

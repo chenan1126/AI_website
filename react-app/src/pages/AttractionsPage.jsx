@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
 import TaiwanMapSelector from '../components/TaiwanMapSelector';
 
 const TAIWAN_CITIES = [
@@ -222,10 +221,8 @@ export default function AttractionsPage({ session, onShowAuth }) {
               <option value="自然景觀">自然景觀</option>
               <option value="文化古蹟">文化古蹟</option>
               <option value="博物館展覽">博物館展覽</option>
-              <option value="休閒娛樂">休閒娛樂</option>
               <option value="美食餐廳">美食餐廳</option>
               <option value="觀光工廠">觀光工廠</option>
-              <option value="購物商圈">購物商圈</option>
             </select>
           </div>
 
@@ -340,10 +337,8 @@ export default function AttractionsPage({ session, onShowAuth }) {
                     <option value="自然景觀">自然景觀</option>
                     <option value="文化古蹟">文化古蹟</option>
                     <option value="博物館展覽">博物館展覽</option>
-                    <option value="休閒娛樂">休閒娛樂</option>
                     <option value="美食餐廳">美食餐廳</option>
                     <option value="觀光工廠">觀光工廠</option>
-                    <option value="購物商圈">購物商圈</option>
                   </select>
                 </div>
               </div>

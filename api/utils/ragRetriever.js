@@ -309,26 +309,32 @@ export async function retrieveRelevantData(userParams, options = {}) {
         city: filters.city // 只使用城市篩選，不限制類別
       };
       
-      attractions = await vectorSearch(
-        attractionQuery,
-        attractionFilters,
-        attractionLimit,
-        threshold
-      );
-      
-      // 過濾掉美食餐廳
-      attractions = attractions.filter(item => item.category !== '美食餐廳');
-      
       // 2. 查詢餐廳
       const restaurantQuery = `${filters.city || '台灣'}的特色美食餐廳、在地小吃、推薦料理`;
       console.log('🔍 餐廳查詢:', restaurantQuery);
+
+      // 平行執行兩個查詢
+      const [attractionResults, restaurantResults] = await Promise.all([
+        vectorSearch(
+            attractionQuery,
+            attractionFilters,
+            attractionLimit * 3, // 修正：請求 3 倍數量的結果，以應對後續過濾掉餐廳後的損耗
+            threshold
+        ),
+        vectorSearch(
+            restaurantQuery,
+            { city: filters.city, category: '美食餐廳' },
+            restaurantLimit,
+            threshold * 0.8 // 餐廳使用更低的閾值（0.52）以獲得更多選項
+        )
+      ]);
       
-      restaurants = await vectorSearch(
-        restaurantQuery,
-        { city: filters.city, category: '美食餐廳' },
-        restaurantLimit,
-        threshold * 0.8 // 餐廳使用更低的閾值（0.52）以獲得更多選項
-      );
+      // 過濾掉美食餐廳，並只保留原本預期的數量
+      attractions = attractionResults
+        .filter(item => item.category !== '美食餐廳')
+        .slice(0, attractionLimit);
+      
+      restaurants = restaurantResults;
       
     } else {
       // 單一查詢，混合景點和餐廳

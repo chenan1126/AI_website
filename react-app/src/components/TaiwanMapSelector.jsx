@@ -115,7 +115,7 @@ const TaiwanMapSelector = ({ onSelectCity, selectedCity }) => {
       </div>
       
       <div className="mt-4 text-sm text-gray-500">
-        點擊地圖區塊選擇縣市，離島區域已加框標示
+        點擊地圖區塊選擇縣市
       </div>
     </div>
   );

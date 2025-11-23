@@ -10,6 +10,7 @@ import {
     calculatePlayingTime,
     calculateWilsonScore,
     enrichWithMapsData,
+    enrichWithCoordinates,
     addTravelTimes
 } from './_utils.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -53,12 +54,15 @@ JSON 格式: {"location": "地點", "city": "縣市", "days": "天數"}
 - 輸出: {"location": "台中", "city": "台中市", "days": "兩天"}
 - 輸入: "去嘉義玩"
 - 輸出: {"location": "嘉義市", "city": "嘉義市", "days": "一日遊"}
+- 輸入: "去台北玩，從台北車站出發"
+- 輸出: {"location": "台北", "city": "台北市", "days": "一日遊"}
 
 規則：
 1. 'location' 必須是台灣的真實地點。
 2. 'city' 必須是 'location' 所屬的台灣縣市。如果無法判斷，請將 'city' 設為與 'location' 相同。
 3. 'days' 如果沒有明確天數，請根據上下文推斷（例如「週末」是兩天），若無法推斷則預設為「一日遊」。
-4. **特別規則**：如果用戶只提到「嘉義」而沒有明確說「嘉義縣」或「阿里山」等山區地名，請務必將 'location' 和 'city' 都設為「嘉義市」。這是為了區分市區旅遊和山區旅遊。`;
+4. **特別規則**：如果用戶只提到「嘉義」而沒有明確說「嘉義縣」或「阿里山」等山區地名，請務必將 'location' 和 'city' 都設為「嘉義市」。這是為了區分市區旅遊和山區旅遊。
+5. **排除交通節點**：如果用戶提到「車站」、「高鐵」、「機場」等作為起點、終點或集合點，請不要將其作為 'location'，除非它是唯一的目的地。請提取主要的遊玩城市或區域。`;
 
         const result = await model.generateContent(
             prompt,
@@ -196,6 +200,7 @@ ${(location.includes('嘉義') && !question.includes('阿里山') && !question.i
 3. **不得出現超過 2 小時的空白時段**（除了睡眠時間）
 4. **行程時間**: 每天從 09:00 開始，到 18:00-19:00 結束
 5. **時間必須連貫**: 前一個活動結束時間 ≤ 下一個活動開始時間
+6. **起點與終點**：如果用戶在需求中指定了起點或終點（例如「從台北車站出發」、「結束在台北車站」），請務必在行程的第一個和最後一個項目安排該地點。
 
 基本規則：
 1. 每個行程項目都必須包含 "day" 欄位，表示是第幾天（從1開始編號，直到 ${days} 天）。
@@ -330,54 +335,60 @@ export default async function handler(req, res) {
         
         sendSseEvent(res, 'parsing', { status: 'complete_query_parsing', data: { location: locationName, days: tripDays, dates: tripDates } });
 
-        // 2. 獲取天氣資訊
+        // 2. 平行執行：獲取天氣資訊 和 RAG 檢索
         sendSseEvent(res, 'weather', { status: 'fetching' });
-        const weatherData = await getMultiDayWeatherSync(cityForWeather, tripDates);
+        if (useRAG) sendSseEvent(res, 'rag', { status: 'retrieving' });
+
+        const weatherPromise = getMultiDayWeatherSync(cityForWeather, tripDates);
+        
+        let ragPromise = Promise.resolve(null);
+        if (useRAG) {
+            console.log('🔍 開始 RAG 檢索...');
+            const userParams = {
+                location: locationName,
+                city: cityForWeather,
+                days: tripDays,
+                tripType: naturalLanguageQuery.includes('親子') ? '親子遊' : 
+                          naturalLanguageQuery.includes('美食') ? '美食之旅' : 
+                          naturalLanguageQuery.includes('文化') ? '文化之旅' : '一般旅遊',
+                preferences: extractPreferencesFromQuery(naturalLanguageQuery),
+                specialRequirements: naturalLanguageQuery
+            };
+            
+            // 執行 RAG 檢索 (不設超時，確保必須使用 RAG)
+            ragPromise = retrieveRelevantData(userParams, {
+                attractionLimit: tripDays * 8,
+                restaurantLimit: tripDays * 5,
+                threshold: 0.7,
+                separateQueries: true
+            }).catch(err => {
+                console.error('❌ RAG 檢索發生嚴重錯誤:', err.message);
+                // 只有在真的出錯時才返回 null，否則盡量等待
+                return null;
+            });
+        }
+
+        const [weatherData, retrievalResult] = await Promise.all([weatherPromise, ragPromise]);
+
+        // 處理天氣結果
         const weatherArray = tripDates.map(date => ({ date, weather: weatherData[date] || null }));
         sendSseEvent(res, 'weather', { status: 'complete', data: weatherArray });
 
-        // 3. RAG 檢索真實景點和餐廳資料（可選）
+        // 處理 RAG 結果
         let ragContext = null;
-        let ragRawData = null; // 儲存原始檢索數據
-        
+        let ragRawData = null;
+
         if (useRAG) {
-            sendSseEvent(res, 'rag', { status: 'retrieving' });
-            try {
-                console.log('🔍 開始 RAG 檢索...');
-                const userParams = {
-                    location: locationName,
-                    city: cityForWeather,
-                    days: tripDays,
-                    tripType: naturalLanguageQuery.includes('親子') ? '親子遊' : 
-                              naturalLanguageQuery.includes('美食') ? '美食之旅' : 
-                              naturalLanguageQuery.includes('文化') ? '文化之旅' : '一般旅遊',
-                    preferences: extractPreferencesFromQuery(naturalLanguageQuery),
-                    specialRequirements: naturalLanguageQuery
-                };
-                
-                // 1. 獲取原始檢索數據
-                const retrievalResult = await retrieveRelevantData(userParams, {
-                    attractionLimit: tripDays * 8,  // 每天約8個景點
-                    restaurantLimit: tripDays * 5,  // 每天約5個餐廳選擇
-                    threshold: 0.7,
-                    separateQueries: true
-                });
-                
-                // 2. 格式化為 Prompt
+            if (retrievalResult) {
                 ragContext = formatRetrievalForPrompt(retrievalResult, tripDays);
-                
-                // 3. 儲存原始數據供前端使用
                 ragRawData = {
                     attractions: retrievalResult.attractions,
                     restaurants: retrievalResult.restaurants
                 };
-                
                 console.log(`✅ RAG 檢索完成，檢索到 ${ragContext.length} 字元的上下文`);
                 sendSseEvent(res, 'rag', { status: 'complete', contextLength: ragContext.length });
-            } catch (ragError) {
-                console.warn('⚠️ RAG 檢索失敗，將不使用向量檢索:', ragError.message);
-                sendSseEvent(res, 'rag', { status: 'error', error: ragError.message });
-                ragContext = null;
+            } else {
+                sendSseEvent(res, 'rag', { status: 'error', error: 'Retrieval failed' });
             }
         } else {
             console.log('🚫 跳過 RAG 檢索（useRAG=false）');
@@ -395,6 +406,7 @@ export default async function handler(req, res) {
             const prompt = buildPrompt(finalQuestion, locationName, tripDays, tripDates, weatherData, ragContextForGeneration);
 
             // Gemini Streaming
+            // 用戶確認有 gemini-2.5-flash，恢復使用
             const model = genAI.getGenerativeModel({
                 model: "gemini-2.5-flash",
             });
@@ -419,7 +431,48 @@ export default async function handler(req, res) {
             let tripData = JSON.parse(fullResponseText);
             
             // 1. Enrich with Maps Data (but skip travel times for now)
-            tripData = await enrichWithMapsData(tripData, cityForWeather, { insertTravelTimes: false });
+            // 為了避免 Vercel Timeout，將地圖資料補充移至前端執行
+            // tripData = await enrichWithMapsData(tripData, cityForWeather, { insertTravelTimes: false });
+
+            // 1.5 嘗試從 RAG 資料中回填座標，以便進行地理優化
+            if (useRAGForGeneration && ragRawData) {
+                const coordMap = new Map();
+                const addToMap = (items) => {
+                    if (!items) return;
+                    items.forEach(item => {
+                        if (item.name) {
+                            coordMap.set(item.name, { lat: item.lat || item.latitude, lng: item.lng || item.longitude });
+                        }
+                    });
+                };
+                addToMap(ragRawData.attractions);
+                addToMap(ragRawData.restaurants);
+
+                tripData.sections.forEach(section => {
+                    // 如果已經有座標就跳過
+                    if (section.lat && section.lng) return;
+
+                    // 嘗試精確匹配
+                    if (coordMap.has(section.location)) {
+                        const coords = coordMap.get(section.location);
+                        section.lat = coords.lat;
+                        section.lng = coords.lng;
+                    } else {
+                        // 嘗試模糊匹配
+                        for (const [name, coords] of coordMap.entries()) {
+                            if (section.location.includes(name) || name.includes(section.location)) {
+                                section.lat = coords.lat;
+                                section.lng = coords.lng;
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 1.6 補充剩餘缺失的座標 (使用 Google Maps API 輕量查詢)
+            // 這是為了確保 GeoOptimizer 能正常運作，即使 RAG 沒有覆蓋到所有地點
+            tripData = await enrichWithCoordinates(tripData, cityForWeather);
 
             // 2. Optimize Itinerary (Lunch Constraint)
             const sectionsByDay = {};
@@ -440,8 +493,8 @@ export default async function handler(req, res) {
             }
             tripData.sections = optimizedSections;
 
-            // 3. Add Travel Times
-            tripData = await addTravelTimes(tripData);
+            // 3. Add Travel Times (Optional, can be triggered by frontend later)
+            // tripData = await addTravelTimes(tripData);
 
             // Final Statistics
             calculateTripStatistics(tripData);
@@ -463,11 +516,33 @@ export default async function handler(req, res) {
 
         sendSseEvent(res, 'generation', { status: 'starting' });
 
-        // 生成兩個行程方案
-        const [aiItinerary, ragItinerary] = await Promise.all([
-            generateItinerary(false, null), // 純AI生成
-            generateItinerary(true, ragContext) // RAG增強生成
-        ]);
+        // 生成行程方案
+        // 優化：如果是多天行程，為了避免超時，只生成 RAG 行程
+        const tasks = [];
+        
+        // 總是生成 RAG 行程 (如果 useRAG 為 true)
+        if (useRAG) {
+             tasks.push(generateItinerary(true, ragContext));
+        } else {
+             // 如果強制不使用 RAG，則生成 AI 行程
+             tasks.push(generateItinerary(false, null));
+        }
+
+        // 只有在單日行程且時間允許的情況下，才額外生成純 AI 對照組
+        // 或者如果 useRAG 為 false，上面已經加了一個，這裡就不加了
+        if (tripDays === 1 && useRAG) {
+            tasks.push(generateItinerary(false, null));
+        }
+
+        const generatedItineraries = await Promise.all(tasks);
+
+        // 確保 itineraries 陣列順序正確 (AI在前, RAG在後，或者根據生成順序)
+        // 這裡我們簡單地將所有生成的行程放入陣列
+        // 如果只有一個，前端會自動處理
+        const itineraries = generatedItineraries.sort((a, b) => {
+            // 讓純 AI 生成的排在前面 (如果有的話)，這只是為了保持一致性
+            return (a.useRAG === b.useRAG) ? 0 : a.useRAG ? 1 : -1;
+        });
 
         sendSseEvent(res, 'generation', { status: 'completed' });
 
@@ -477,8 +552,8 @@ export default async function handler(req, res) {
             start_date: tripDates[0],
             weather_data: weatherArray,
             question: naturalLanguageQuery,
-            prompt: `包含兩個行程方案：純AI生成和RAG增強生成`,
-            itineraries: [aiItinerary, ragItinerary],
+            prompt: `包含 ${itineraries.length} 個行程方案`,
+            itineraries: itineraries,
             rag_raw_data: ragRawData // 加入原始 RAG 數據
         };
 
