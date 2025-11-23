@@ -8,6 +8,56 @@ function TripResults({ data }) {
   const [dayIndices, setDayIndices] = React.useState({});
   const [selectedItinerary, setSelectedItinerary] = React.useState(null);
   const [selectedDay, setSelectedDay] = React.useState(1); // 新增：當前選擇的天數
+  
+  // 新增：回報視窗狀態
+  const [reportModalOpen, setReportModalOpen] = React.useState(false);
+  const [reportingLocation, setReportingLocation] = React.useState(null);
+  const [reportReason, setReportReason] = React.useState('closed'); // closed, wrong_info, other
+  const [reportDescription, setReportDescription] = React.useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = React.useState(false);
+
+  const openReportModal = (locationName) => {
+    setReportingLocation(locationName);
+    setReportModalOpen(true);
+    setReportReason('closed');
+    setReportDescription('');
+  };
+
+  const closeReportModal = () => {
+    setReportModalOpen(false);
+    setReportingLocation(null);
+  };
+
+  const submitReport = async () => {
+    if (!reportingLocation) return;
+    
+    setIsSubmittingReport(true);
+    try {
+      const response = await fetch('/api/report-issue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          attractionName: reportingLocation,
+          reportType: reportReason,
+          description: reportDescription
+        }),
+      });
+      
+      if (response.ok) {
+        alert('感謝您的回報！我們會盡快審核並更新資料庫。');
+        closeReportModal();
+      } else {
+        alert('回報失敗，請稍後再試。');
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      alert('發生錯誤，請稍後再試。');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
 
   if (!data || !data.itineraries) {
     return null;
@@ -74,6 +124,21 @@ function TripResults({ data }) {
                 <span>{section.maps_data && section.maps_data.address ? section.maps_data.address : section.address}</span>
               </div>
             )}
+
+            {/* 回報按鈕 */}
+            <div className="mb-3">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openReportModal(section.location);
+                }}
+                className="px-3 py-1.5 bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-600 text-xs rounded-md border border-slate-200 hover:border-red-200 transition-all flex items-center gap-1.5"
+                title="回報此地點已歇業或資訊錯誤"
+              >
+                <i className="fas fa-exclamation-circle"></i> 
+                <span>回報問題 (歇業/錯誤)</span>
+              </button>
+            </div>
 
             {/* Google 評分資訊與威爾遜綜合評分 */}
             {section.maps_data && (section.maps_data.rating || section.rating) && (
@@ -264,7 +329,9 @@ function TripResults({ data }) {
         </div>
       </div>
     );
-  };  return (
+  };
+
+  return (
     <div className="response-wrapper">
       {/* 顯示天氣卡片 - 在最上方 */}
       {data.weather_data && data.weather_data.length > 0 && (
@@ -335,6 +402,67 @@ function TripResults({ data }) {
           .map((itinerary, index) => renderItinerary(itinerary, selectedItinerary === null ? index : selectedItinerary, selectedItinerary === null))
         }
       </div>
+
+      {/* 回報問題的 Modal */}
+      {reportModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 max-w-md w-full">
+            <h3 className="text-slate-900 dark:text-white text-lg font-semibold mb-4">
+              回報問題
+            </h3>
+            <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
+              您可以幫助我們改善資料品質，感謝您的回報！
+            </p>
+
+            {/* 問題類型選擇 */}
+            <div className="mb-4">
+              <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-2">
+                問題類型
+              </label>
+              <select
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                className="block w-full p-2.5 text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-700 rounded-md border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-primary focus:outline-none"
+              >
+                <option value="closed">景點已關閉</option>
+                <option value="wrong_info">資訊錯誤</option>
+                <option value="other">其他問題</option>
+              </select>
+            </div>
+
+            {/* 問題描述 */}
+            <div className="mb-4">
+              <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-2">
+                問題描述
+              </label>
+              <textarea
+                value={reportDescription}
+                onChange={(e) => setReportDescription(e.target.value)}
+                className="block w-full p-2.5 text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-700 rounded-md border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-primary focus:outline-none"
+                rows="3"
+                placeholder="請簡要描述您發現的問題..."
+              ></textarea>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={closeReportModal}
+                className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-md shadow-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200"
+              >
+                取消
+              </button>
+              <button
+                onClick={submitReport}
+                className="px-4 py-2 bg-primary text-white rounded-md shadow-md flex items-center gap-2 transition-all duration-200 hover:bg-primary/90 disabled:opacity-50"
+                disabled={isSubmittingReport}
+              >
+                {isSubmittingReport && <i className="fas fa-spinner fa-spin"></i>}
+                回報問題
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

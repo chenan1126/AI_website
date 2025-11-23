@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage'
 import PlannerPage from './pages/PlannerPage'
 import TripDetailPage from './pages/TripDetailPage'
 import ProfilePage from './pages/ProfilePage'
+import AttractionsPage from './pages/AttractionsPage'
 import AuthForm from './components/AuthForm'
 import { supabase } from './supabaseClient'
 import './App.css'
@@ -61,6 +62,7 @@ function App() {
             <Route path="/plan" element={<PlannerPage />} />
             <Route path="/trip-detail" element={<TripDetailPage session={session} onShowAuth={handleShowAuth} />} />
             <Route path="/profile" element={<ProfilePage session={session} onShowAuth={handleShowAuth} />} />
+            <Route path="/attractions" element={<AttractionsPage session={session} onShowAuth={handleShowAuth} />} />
           </Routes>
         </main>
 

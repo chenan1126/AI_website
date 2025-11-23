@@ -7,6 +7,7 @@ function Header({ session, onShowAuth, onLogout }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // 初始化主題
   useEffect(() => {
@@ -123,6 +124,16 @@ function Header({ session, onShowAuth, onLogout }) {
               >
                 規劃行程
               </Link>
+              <Link
+                to="/attractions"
+                className={`transition-colors text-lg ${
+                  isHomePage
+                    ? (isScrolled ? (isDarkMode ? 'text-white/90 hover:text-white' : 'text-gray-900 hover:text-gray-700') : 'text-white/80 hover:text-white')
+                    : (isScrolled ? (isDarkMode ? 'text-white/90 hover:text-white' : 'text-gray-600 hover:text-gray-900') : (isDarkMode ? 'text-white/80 hover:text-white' : 'text-gray-600 hover:text-gray-900'))
+                }`}
+              >
+                景點資料庫
+              </Link>
             </nav>
 
             {/* User Section */}
@@ -189,8 +200,121 @@ function Header({ session, onShowAuth, onLogout }) {
                 </>
               )}
             </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              className={`md:hidden p-2 rounded-lg transition-colors ${
+                isHomePage
+                  ? (isScrolled ? (isDarkMode ? 'text-white hover:bg-white/20' : 'text-gray-900 hover:bg-gray-100') : 'text-white hover:bg-white/20')
+                  : (isScrolled ? (isDarkMode ? 'text-white hover:bg-white/20' : 'text-gray-900 hover:bg-gray-100') : (isDarkMode ? 'text-white hover:bg-white/20' : 'text-gray-900 hover:bg-gray-100'))
+              }`}
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              <i className={`fas ${isMobileMenuOpen ? 'fa-times' : 'fa-bars'} text-2xl`}></i>
+            </button>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+          <div className={`md:hidden absolute top-full left-0 w-full shadow-lg transition-all duration-300 ${
+            isDarkMode ? 'bg-slate-900 border-t border-slate-800' : 'bg-white border-t border-gray-100'
+          }`}>
+            <div className="flex flex-col p-4 space-y-4">
+              <Link
+                to="/"
+                className={`px-4 py-2 rounded-lg text-lg font-medium ${
+                  isDarkMode ? 'text-white hover:bg-slate-800' : 'text-gray-900 hover:bg-gray-50'
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                首頁
+              </Link>
+              <Link
+                to="/plan"
+                className={`px-4 py-2 rounded-lg text-lg font-medium ${
+                  isDarkMode ? 'text-white hover:bg-slate-800' : 'text-gray-900 hover:bg-gray-50'
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                規劃行程
+              </Link>
+              <Link
+                to="/attractions"
+                className={`px-4 py-2 rounded-lg text-lg font-medium ${
+                  isDarkMode ? 'text-white hover:bg-slate-800' : 'text-gray-900 hover:bg-gray-50'
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                景點資料庫
+              </Link>
+              
+              <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+              
+              <div className="flex items-center justify-between px-4">
+                <span className={`text-lg font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  切換主題
+                </span>
+                <button
+                  onClick={toggleTheme}
+                  className={`p-2 rounded-full ${
+                    isDarkMode ? 'text-white hover:bg-slate-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {isDarkMode ? <i className="fas fa-sun text-xl"></i> : <i className="fas fa-moon text-xl"></i>}
+                </button>
+              </div>
+
+              {session ? (
+                <>
+                  <Link
+                    to="/profile"
+                    className={`px-4 py-2 rounded-lg text-lg font-medium flex items-center gap-2 ${
+                      isDarkMode ? 'text-white hover:bg-slate-800' : 'text-gray-900 hover:bg-gray-50'
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <i className="fas fa-user"></i>
+                    <span>{getUserDisplayName()}</span>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setShowLogoutConfirm(true);
+                    }}
+                    className="w-full text-left px-4 py-2 rounded-lg text-lg font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    <i className="fas fa-sign-out-alt mr-2"></i>
+                    登出
+                  </button>
+                </>
+              ) : (
+                <div className="flex flex-col gap-3 mt-2">
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      onShowAuth();
+                    }}
+                    className={`w-full px-4 py-2.5 rounded-lg text-lg font-medium border ${
+                      isDarkMode ? 'border-slate-600 text-white hover:bg-slate-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    登入
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      onShowAuth();
+                    }}
+                    className="w-full px-4 py-2.5 rounded-lg text-lg font-medium bg-primary text-white hover:bg-opacity-90"
+                  >
+                    註冊
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* 登出確認 Modal */}

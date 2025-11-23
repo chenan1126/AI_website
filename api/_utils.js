@@ -97,17 +97,15 @@ function normalizeCityName(cityName) {
  */
 async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
     console.log(`[Weather API] 正在為城市「${cityName}」獲取 ${timeFrom} 到 ${timeTo} 的天氣...`);
-    console.log(`[Weather API] CWA_API_KEY 是否已設定: ${process.env.CWA_API_KEY ? '是' : '否（使用備用金鑰）'}`);
-    console.log(`[Weather API] 使用的授權碼前8碼: ${CWA_AUTH.substring(0, 8)}...`);
     
     try {
         // 標準化城市名稱（處理「臺」和「台」的異體字）
         const normalizedCity = normalizeCityName(cityName);
         const datasetId = CITY_MAPPING[normalizedCity] || "F-D0047-063";
         if (cityName !== normalizedCity) {
-            console.log(`[Weather API] 城市名稱標準化: "${cityName}" -> "${normalizedCity}"`);
+            // console.log(`[Weather API] 城市名稱標準化: "${cityName}" -> "${normalizedCity}"`);
         }
-        console.log(`[Weather API] 城市: ${normalizedCity}, 使用 datasetId: ${datasetId}`);
+        // console.log(`[Weather API] 城市: ${normalizedCity}, 使用 datasetId: ${datasetId}`);
         
         const url = new URL(`https://opendata.cwa.gov.tw/api/v1/rest/datastore/${datasetId}`);
         url.searchParams.append('Authorization', CWA_AUTH);
@@ -115,7 +113,7 @@ async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
         url.searchParams.append('timeFrom', timeFrom);
         url.searchParams.append('timeTo', timeTo);
 
-        console.log(`[Weather API] 請求 URL: ${url.toString()}`);
+        // console.log(`[Weather API] 請求 URL: ${url.toString()}`);
 
         const response = await fetch(url.toString(), { timeout: 10000 });
         if (!response.ok) {
@@ -151,7 +149,7 @@ async function getWeatherRangeSync(cityName, timeFrom, timeTo) {
  */
 function getWeatherForDateFromForecast(data, dateStr) {
     try {
-        console.log(`[Weather Parser] 開始解析日期 ${dateStr} 的天氣數據...`);
+        // console.log(`[Weather Parser] 開始解析日期 ${dateStr} 的天氣數據...`);
         
         const targetDate = new Date(dateStr);
         targetDate.setHours(0, 0, 0, 0);
@@ -163,7 +161,7 @@ function getWeatherForDateFromForecast(data, dateStr) {
         }
 
         const weatherElements = locationData.WeatherElement;
-        console.log(`[Weather Parser] 找到 ${weatherElements?.length || 0} 個天氣元素`);
+        // console.log(`[Weather Parser] 找到 ${weatherElements?.length || 0} 個天氣元素`);
         
         const dateWeatherData = [];
 
@@ -211,11 +209,11 @@ function getWeatherForDateFromForecast(data, dateStr) {
                 }
             }
             if (matchedSlots > 0) {
-                console.log(`[Weather Parser] 元素「${element.ElementName}」匹配到 ${matchedSlots} 個時間槽`);
+                // console.log(`[Weather Parser] 元素「${element.ElementName}」匹配到 ${matchedSlots} 個時間槽`);
             }
         }
 
-        console.log(`[Weather Parser] 日期 ${dateStr} 共收集到 ${dateWeatherData.length} 筆天氣數據`);
+        // console.log(`[Weather Parser] 日期 ${dateStr} 共收集到 ${dateWeatherData.length} 筆天氣數據`);
 
         if (dateWeatherData.length === 0) {
             console.warn(`[Weather Parser] 找不到 ${dateStr} 的天氣預報資料，返回默認數據`);
@@ -315,8 +313,8 @@ export async function getMultiDayWeatherSync(cityName, dates) {
     // 結束時間設為最後一天的 23:59:59，確保包含整天
     const timeTo = `${lastDate}T23:59:59`;
     
-    console.log(`[Weather] 城市: ${cityName}, 日期範圍: ${dates.join(', ')}`);
-    console.log(`[Weather] 使用時間範圍獲取天氣: ${timeFrom} 到 ${timeTo}`);
+    // console.log(`[Weather] 城市: ${cityName}, 日期範圍: ${dates.join(', ')}`);
+    // console.log(`[Weather] 使用時間範圍獲取天氣: ${timeFrom} 到 ${timeTo}`);
     
     try {
         // 使用單次 API 調用獲取整個日期範圍的天氣
@@ -332,10 +330,10 @@ export async function getMultiDayWeatherSync(cityName, dates) {
         // 為每個日期提取天氣資訊
         const weatherData = {};
         for (const date of dates) {
-            console.log(`[Weather] 正在解析日期 ${date} 的天氣...`);
+            // console.log(`[Weather] 正在解析日期 ${date} 的天氣...`);
             const weather = getWeatherForDateFromForecast(data, date);
             if (weather && !weather.error) {
-                console.log(`[Weather] 日期 ${date} 的天氣解析成功:`, weather);
+                // console.log(`[Weather] 日期 ${date} 的天氣解析成功:`, weather);
                 weatherData[date] = weather;
             } else {
                 console.warn(`[Weather] 日期 ${date} 的天氣解析失敗:`, weather?.error);
@@ -379,7 +377,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         findPlaceUrl.searchParams.append('input', searchQuery);
         findPlaceUrl.searchParams.append('inputtype', 'textquery');
         findPlaceUrl.searchParams.append('fields', 'place_id,name,rating,user_ratings_total,formatted_address');
-        findPlaceUrl.searchParams.append('locationbias', `region:${location}`);
+        findPlaceUrl.searchParams.append('locationbias', 'region:tw'); // 限制在台灣地區
         findPlaceUrl.searchParams.append('language', 'zh-TW');
         findPlaceUrl.searchParams.append('key', GOOGLE_MAPS_API_KEY);
 
@@ -391,24 +389,40 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
             return { error: `找不到景點: ${placeName}` };
         }
         
-        // 驗證返回的地址是否包含目標城市
+        // 驗證返回的地址是否包含目標城市（更靈活的匹配）
         let selectedCandidate = null;
         for (const candidate of searchData.candidates) {
             const address = candidate.formatted_address || '';
-            console.log(`[Maps] 候選地點: ${candidate.name} - ${address}`);
+            // console.log(`[Maps] 候選地點: ${candidate.name} - ${address}`);
             
-            // 檢查地址是否包含目標城市
-            if (address.includes(location) || location === "台灣") {
+            // 檢查地址是否包含目標城市（支援部分匹配）
+            const normalizedAddress = address.replace(/\s+/g, ''); // 移除所有空格
+            const normalizedLocation = location.replace(/\s+/g, ''); // 移除所有空格
+            
+            // 檢查是否包含城市名稱的任何形式
+            const cityVariants = [
+                normalizedLocation,
+                normalizedLocation.replace('縣', '').replace('市', ''), // 移除縣市字樣
+                normalizedLocation.replace('縣', '市'), // 縣改市
+                normalizedLocation.replace('市', '縣'), // 市改縣
+            ];
+            
+            const addressContainsCity = cityVariants.some(variant => 
+                normalizedAddress.includes(variant) || 
+                address.includes(variant)
+            );
+            
+            if (addressContainsCity || location === "台灣") {
                 selectedCandidate = candidate;
-                console.log(`[Maps] ✓ 選擇地點: ${candidate.name} (地址符合 ${location})`);
+                // console.log(`[Maps] ✓ 選擇地點: ${candidate.name} (地址包含 ${location})`);
                 break;
             }
         }
         
-        // 如果沒有找到符合城市的候選，使用第一個結果但記錄警告
-        if (!selectedCandidate) {
+        // 如果沒有找到符合城市的候選，使用最佳匹配
+        if (!selectedCandidate && searchData.candidates.length > 0) {
             selectedCandidate = searchData.candidates[0];
-            console.warn(`[Maps] ⚠️ 警告: 找不到位於「${location}」的「${placeName}」，使用第一個搜尋結果: ${selectedCandidate.formatted_address}`);
+            console.warn(`[Maps] ⚠️ 警告: 找不到位於「${location}」的「${placeName}」，使用最佳搜尋結果: ${selectedCandidate.formatted_address}`);
         }
         
         const placeId = selectedCandidate.place_id;
@@ -416,7 +430,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         // 2. Get Place Details
         const detailsUrl = new URL("https://maps.googleapis.com/maps/api/place/details/json");
         detailsUrl.searchParams.append('place_id', placeId);
-        detailsUrl.searchParams.append('fields', 'name,rating,user_ratings_total,formatted_address,address_components,geometry,types,business_status,permanently_closed');
+        detailsUrl.searchParams.append('fields', 'name,rating,user_ratings_total,formatted_address,address_components,geometry,types,business_status,permanently_closed,opening_hours,photos,formatted_phone_number,website');
         detailsUrl.searchParams.append('language', 'zh-TW');
         detailsUrl.searchParams.append('key', GOOGLE_MAPS_API_KEY);
 
@@ -455,7 +469,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
             
             chineseAddress = addressParts.join('');
             
-            console.log(`[Maps] 重組繁體中文地址: ${chineseAddress}`);
+            // console.log(`[Maps] 重組繁體中文地址: ${chineseAddress}`);
         }
         
         // 如果重組失敗，使用 formatted_address 但清理英文部分
@@ -466,7 +480,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
                 .replace(/\s*,\s*/g, '') // 移除逗號
                 .replace(/[A-Za-z\s]+/g, '') // 移除英文字母和空格
                 .trim();
-            console.log(`[Maps] 清理後的地址: ${chineseAddress}`);
+            // console.log(`[Maps] 清理後的地址: ${chineseAddress}`);
         }
 
         // 檢查地點營業狀態
@@ -474,7 +488,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         const permanentlyClosed = result.permanently_closed;
 
         // 記錄實際收到的狀態供除錯
-        console.log(`[Maps] 地點「${placeName}」的營業狀態: business_status=${businessStatus}, permanently_closed=${permanentlyClosed}`);
+        // console.log(`[Maps] 地點「${placeName}」的營業狀態: business_status=${businessStatus}, permanently_closed=${permanentlyClosed}`);
 
         if (businessStatus === 'CLOSED_PERMANENTLY' || permanentlyClosed === true) {
             console.warn(`[Maps] 地點「${placeName}」可能暫停營業或歇業`);
@@ -510,7 +524,11 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
             address: chineseAddress,
             location: result.geometry?.location || {},
             types: result.types || [],
-            business_status: businessStatus
+            business_status: businessStatus,
+            opening_hours: result.opening_hours?.weekday_text,
+            photos: result.photos,
+            phone: result.formatted_phone_number,
+            website: result.website
         };
     } catch (e) {
         console.error(`[Maps] 獲取景點「${placeName}」詳情時發生錯誤: ${e.message}`);
@@ -631,8 +649,8 @@ export async function calculateRouteDistanceAndTimeSync(origin, destination, mod
         const response = await fetch(directionsUrl.toString());
         const data = await response.json();
 
-        console.log(`[Maps] API 回應狀態: ${data.status}`);
-        console.log(`[Maps] 請求 URL: ${directionsUrl.toString()}`);
+        // console.log(`[Maps] API 回應狀態: ${data.status}`);
+        // console.log(`[Maps] 請求 URL: ${directionsUrl.toString()}`);
 
         if (data.status !== 'OK' || !data.routes || data.routes.length === 0) {
             console.warn(`[Maps] 無法計算路線: ${origin} -> ${destination}`);
@@ -641,9 +659,9 @@ export async function calculateRouteDistanceAndTimeSync(origin, destination, mod
         }
 
         const leg = data.routes[0].legs[0];
-        console.log(`[Maps] 計算結果: ${leg.distance.text}, ${leg.duration.text}`);
-        console.log(`[Maps] 起點地址: ${leg.start_address}`);
-        console.log(`[Maps] 終點地址: ${leg.end_address}`);
+        // console.log(`[Maps] 計算結果: ${leg.distance.text}, ${leg.duration.text}`);
+        // console.log(`[Maps] 起點地址: ${leg.start_address}`);
+        // console.log(`[Maps] 終點地址: ${leg.end_address}`);
 
         return {
             distance_text: leg.distance.text,
@@ -852,5 +870,188 @@ export function isLocationSpecific(location) {
     if (fuzzyWords.some(word => location.includes(word))) return false;
 
     return true;
+}
+
+// ============================================
+// 🗺️ 行程豐富化功能 (Itinerary Enrichment)
+// ============================================
+// 功能：
+// - enrichWithMapsData: 為行程添加地圖資訊和交通時間（對外導出）
+// ============================================
+
+/**
+ * 為行程數據添加交通時間
+ * @param {object} tripData - 行程數據 (需包含 maps_data)
+ * @returns {Promise<object>} 添加交通時間後的行程數據
+ */
+export async function addTravelTimes(tripData) {
+    if (!tripData.sections) return tripData;
+    
+    const sectionsWithTravel = [];
+    const sections = tripData.sections;
+
+    for (let i = 0; i < sections.length; i++) {
+        const currentSection = sections[i];
+        sectionsWithTravel.push(currentSection);
+
+        // 如果不是最後一個項目，且下一個項目在同一天，則插入交通時間
+        if (i < sections.length - 1) {
+            const nextSection = sections[i + 1];
+
+            if (currentSection.day === nextSection.day && currentSection.location && nextSection.location) {
+                // 使用Places API返回的地址，如果沒有地址則使用地點名稱
+                const originAddress = currentSection.maps_data?.address || currentSection.location;
+                const destAddress = nextSection.maps_data?.address || nextSection.location;
+
+                try {
+                    const routeData = await calculateRouteDistanceAndTimeSync(originAddress, destAddress);
+
+                    if (!routeData.error) {
+                        // 使用具體地址或Google Maps名稱，如果沒有則使用原始名稱
+                        const fromName = currentSection.maps_data?.google_maps_name || currentSection.maps_data?.address || currentSection.location;
+                        const toName = nextSection.maps_data?.google_maps_name || nextSection.maps_data?.address || nextSection.location;
+
+                        // 插入交通時間項目
+                        const travelSection = {
+                            time: `交通時間: 約 ${Math.round(routeData.duration_value / 60)} 分鐘`,
+                            location: `從${fromName}到${toName}的交通`,
+                            details: [`${routeData.mode === 'driving' ? '開車' : routeData.mode === 'transit' ? '大眾運輸' : '步行'}約 ${routeData.distance_text}`],
+                            day: currentSection.day,
+                            is_travel_time: true, // 標記這是交通時間項目
+                            travel_info: {
+                                from: fromName,
+                                to: toName,
+                                distance: routeData.distance_text || '',
+                                duration: routeData.duration_text || '',
+                                duration_value: routeData.duration_value || 0,
+                                mode: routeData.mode || 'driving'
+                            }
+                        };
+
+                        sectionsWithTravel.push(travelSection);
+                    } else {
+                        console.warn(`[Trip] 無法計算從 ${currentSection.location} 到 ${nextSection.location} 的交通時間: ${routeData.error}`);
+                        // 如果無法計算交通時間，插入一個預設的交通時間項目
+                        const travelSection = {
+                            time: `交通時間: 約 15 分鐘`,
+                            location: `從${currentSection.location}到${nextSection.location}的交通`,
+                            details: [`預估交通時間`],
+                            day: currentSection.day,
+                            is_travel_time: true,
+                            travel_info: {
+                                from: currentSection.location,
+                                to: nextSection.location,
+                                distance: '',
+                                duration: '約 15 分鐘',
+                                duration_value: 900, // 15分鐘 = 900秒
+                                mode: 'driving'
+                            }
+                        };
+                        sectionsWithTravel.push(travelSection);
+                    }
+                } catch (error) {
+                    console.error(`[Trip] 計算交通時間時發生錯誤: ${error.message}`);
+                    // 插入預設交通時間
+                    const travelSection = {
+                        time: `交通時間: 約 15 分鐘`,
+                        location: `從${currentSection.location}到${nextSection.location}的交通`,
+                        details: [`預估交通時間`],
+                        day: currentSection.day,
+                        is_travel_time: true,
+                        travel_info: {
+                            from: currentSection.location,
+                            to: nextSection.location,
+                            distance: '',
+                            duration: '約 15 分鐘',
+                            duration_value: 900,
+                            mode: 'driving'
+                        }
+                    };
+                    sectionsWithTravel.push(travelSection);
+                }
+            }
+        }
+    }
+
+    tripData.sections = sectionsWithTravel;
+    return tripData;
+}
+
+/**
+ * 為行程數據添加 Google Maps 資訊和交通時間
+ * @param {object} tripData - 原始行程數據
+ * @param {string} cityLocation - 城市位置偏好
+ * @param {object} options - 選項 { insertTravelTimes: boolean }
+ * @returns {Promise<object>} 豐富化後的行程數據
+ */
+export async function enrichWithMapsData(tripData, cityLocation, options = { insertTravelTimes: true }) {
+    if (!tripData.sections) return tripData;
+
+    const places = [...new Set(tripData.sections.map(s => s.location).filter(Boolean))];
+
+    const placesData = {};
+    const placePromises = places.map(placeName =>
+        getPlaceDetailsSync(placeName, cityLocation).then(mapsData => {
+            if (!mapsData.error) {
+                placesData[placeName] = mapsData;
+            } else if (mapsData.error && (mapsData.error.includes('歇業') || mapsData.error.includes('closed'))) {
+                // 對於歇業地點，記錄警告但不添加到placesData中
+                console.warn(`[Trip] 地點「${placeName}」可能已歇業: ${mapsData.error}`);
+                // 可以選擇添加一個標記，表示這個地點有問題
+                placesData[placeName] = {
+                    error: mapsData.error,
+                    is_closed: true
+                };
+            }
+        })
+    );
+    await Promise.all(placePromises);
+
+    // 首先為每個項目添加地圖數據
+    const sectionsWithMaps = tripData.sections.map(section => {
+        const enrichedSection = { ...section };
+        const placeName = section.location;
+        if (placeName && placesData[placeName]) {
+            const mapsInfo = placesData[placeName];
+
+            // 檢查是否為歇業地點
+            if (mapsInfo.is_closed) {
+                enrichedSection.warning = `注意：「${placeName}」${mapsInfo.error}`;
+                enrichedSection.closure_type = mapsInfo.closure_type; // 'permanent' 或 'temporary'
+                enrichedSection.maps_data = null; // 不設置maps_data，因為地點已歇業
+            } else {
+                enrichedSection.maps_data = {
+                    rating: mapsInfo.rating || 0,
+                    user_ratings_total: mapsInfo.user_ratings_total || 0,
+                    address: mapsInfo.address || '',
+                    google_maps_name: mapsInfo.name || placeName,
+                    wilson_score: calculateWilsonScore(mapsInfo.rating, mapsInfo.user_ratings_total),
+                    opening_hours: mapsInfo.opening_hours,
+                    phone: mapsInfo.phone,
+                    website: mapsInfo.website,
+                    photo_url: mapsInfo.photos && mapsInfo.photos.length > 0 
+                        ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${mapsInfo.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`
+                        : null
+                };
+
+                // 加入座標資訊（地圖顯示需要）
+                if (mapsInfo.location) {
+                    enrichedSection.coordinates = {
+                        lat: mapsInfo.location.lat,
+                        lng: mapsInfo.location.lng
+                    };
+                }
+            }
+        }
+        return enrichedSection;
+    });
+
+    tripData.sections = sectionsWithMaps;
+
+    if (options.insertTravelTimes) {
+        return await addTravelTimes(tripData);
+    }
+
+    return tripData;
 }
 

@@ -358,10 +358,122 @@ export function calculateItineraryDistance(dailyItinerary) {
   };
 }
 
+/**
+ * 優化指定路段的順序 (固定起點)
+ * @param {Array} locations - 包含起點的景點列表
+ * @returns {Array} 排序後的列表
+ */
+export function optimizeSegment(locations) {
+  return sortByNearestNeighbor(locations);
+}
+
+/**
+ * 優化單日行程，確保午餐在中間
+ * @param {Array} locations - 當日所有景點 (需包含 lat, lng 或 coordinates)
+ * @returns {Array} 排序後的景點
+ */
+export function optimizeDayWithLunch(locations) {
+  // 1. 找出午餐地點
+  // 判斷邏輯：
+  // 1. type === 'lunch' (優先)
+  // 2. location 名稱包含 "午餐"
+  // 3. details 包含 "午餐"
+  // 4. time 包含 "午餐"
+  const lunchIndex = locations.findIndex(loc => 
+    (loc.type === 'lunch') ||
+    (loc.location && loc.location.includes('午餐')) || 
+    (loc.details && Array.isArray(loc.details) && loc.details.some(d => d.includes('午餐'))) ||
+    (loc.time && loc.time.includes('午餐'))
+  );
+
+  // 預處理：確保所有地點都有 lat/lng
+  const mappedLocations = locations.map(loc => ({
+    ...loc,
+    lat: loc.coordinates?.lat || loc.lat || loc.latitude,
+    lng: loc.coordinates?.lng || loc.lng || loc.longitude
+  }));
+
+  // 檢查是否有無效座標
+  if (mappedLocations.some(l => !l.lat || !l.lng)) {
+      console.warn('[GeoOptimizer] 部分地點缺少座標，無法進行午餐優化，使用原始順序或簡單排序');
+      return sortByNearestNeighbor(locations);
+  }
+
+  if (lunchIndex === -1) {
+    // 沒找到午餐，直接優化整天
+    return sortByNearestNeighbor(mappedLocations);
+  }
+
+  const lunch = mappedLocations[lunchIndex];
+  const others = mappedLocations.filter((_, i) => i !== lunchIndex);
+
+  if (others.length === 0) return [lunch];
+  
+  // 如果只有一個其他地點，直接回傳 [other, lunch] (假設先玩再吃)
+  if (others.length === 1) {
+      return [others[0], lunch];
+  }
+
+  // 2. 將其餘地點分為兩群 (早上, 下午)
+  // 使用 K-Means 分兩群
+  const clusters = kMeansClustering(others, 2);
+  
+  let groupA = [];
+  let groupB = [];
+
+  if (clusters.length >= 2) {
+      groupA = clusters[0].locations;
+      groupB = clusters[1].locations;
+  } else {
+      // 如果只分出一群 (例如地點太近)，則使用 NearestNeighbor 排序後切半
+      const sorted = sortByNearestNeighbor(others);
+      const mid = Math.floor(sorted.length / 2);
+      groupA = sorted.slice(0, mid);
+      groupB = sorted.slice(mid);
+  }
+
+  // 3. 優化兩個群組的內部順序
+  const pathA = sortByNearestNeighbor(groupA);
+  const pathB = sortByNearestNeighbor(groupB);
+
+  // 4. 比較兩種組合: A -> Lunch -> B  vs  B -> Lunch -> A
+  const getDist = (p1, p2) => calculateDistance(
+      p1.lat, p1.lng, p2.lat, p2.lng
+  );
+
+  // 計算路徑總距離 (包含群組內部距離 + 連接到午餐的距離)
+  // 群組內部距離已經由 sortByNearestNeighbor 優化，我們只需要比較連接點
+  
+  // Path 1: A -> Lunch -> B
+  // Cost = (A內部) + dist(A_last, Lunch) + dist(Lunch, B_first) + (B內部)
+  // 由於 (A內部) 和 (B內部) 是固定的 (對於該群組)，我們主要比較連接成本
+  // 但要注意，sortByNearestNeighbor 的起點是列表的第一個元素。
+  // 我們可能需要嘗試反轉 pathA 或 pathB 來獲得更好的連接?
+  // 簡單起見，我們先只比較 A->L->B 和 B->L->A
+  
+  const distA_L_B = (pathA.length ? getDist(pathA[pathA.length-1], lunch) : 0) + 
+                    (pathB.length ? getDist(lunch, pathB[0]) : 0);
+                    
+  const distB_L_A = (pathB.length ? getDist(pathB[pathB.length-1], lunch) : 0) + 
+                    (pathA.length ? getDist(lunch, pathA[0]) : 0);
+
+  // 這裡有一個潛在問題：pathA 的起點是固定的。
+  // 如果我們把 A 放在下午，可能應該反轉 A？
+  // 暫時不考慮反轉，假設 K-Means 分群已經將地理位置分開了。
+
+  if (distA_L_B <= distB_L_A) {
+      return [...pathA, lunch, ...pathB];
+  } else {
+      return [...pathB, lunch, ...pathA];
+  }
+}
+
 export default {
   optimizeItinerary,
   calculateItineraryDistance,
   calculateDistance,
   kMeansClustering,
-  sortByNearestNeighbor
+  sortByNearestNeighbor,
+  optimizeSegment,
+  optimizeDayWithLunch
 };

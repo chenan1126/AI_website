@@ -64,9 +64,14 @@ function extractFilters(params) {
     } else if (location.includes('新竹')) {
       // 需要判斷是新竹市還是新竹縣
       filters.city = location.includes('縣') ? '新竹縣' : '新竹市';
-    } else if (location.includes('嘉義')) {
-      // 需要判斷是嘉義市還是嘉義縣
-      filters.city = location.includes('縣') ? '嘉義縣' : '嘉義市';
+    } else if (location.includes('嘉義') || location.includes('阿里山')) {
+      // 如果是阿里山或明確指定嘉義縣 -> 嘉義縣
+      if (location.includes('阿里山') || location.includes('縣')) {
+        filters.city = '嘉義縣';
+      } else {
+        // 否則預設為嘉義市 (例如只輸入「嘉義」)
+        filters.city = '嘉義市';
+      }
     } else if (location.includes('台東') || location.includes('臺東')) {
       filters.city = '台東縣';
     } else if (location.includes('宜蘭')) {
@@ -183,12 +188,22 @@ async function vectorSearch(queryText, filters = {}, limit = 10, threshold = 0.7
     // 生成查詢向量
     const queryEmbedding = await createEmbedding(queryText);
     
+    // 針對嘉義市查詢的特殊處理策略：
+    // 1. 不在 RPC 層級過濾城市 (避免資料庫欄位可能有空白或其他字元導致完全匹配失敗)
+    // 2. 大幅增加檢索數量 (300筆)，確保即使阿里山景點佔據前茅，也能撈到市區景點
+    // 3. 降低相似度閾值 (0.4)，避免市區景點因相關度稍低被切掉
+    const isChiayiCityQuery = filters.city === '嘉義市';
+    
+    const rpcFilterCity = isChiayiCityQuery ? null : (filters.city || null);
+    const rpcLimit = isChiayiCityQuery ? 500 : limit; // 再次大幅增加檢索數量
+    const rpcThreshold = isChiayiCityQuery ? 0.3 : threshold; // 再次降低閾值以包含更多結果
+
     // 呼叫 Supabase 向量搜尋函數
     const { data, error } = await supabase.rpc('match_attractions', {
       query_embedding: queryEmbedding,
-      match_threshold: threshold,
-      match_count: limit,
-      filter_city: filters.city || null,
+      match_threshold: rpcThreshold,
+      match_count: rpcLimit,
+      filter_city: rpcFilterCity,
       filter_category: filters.category || null
     });
     
@@ -197,7 +212,37 @@ async function vectorSearch(queryText, filters = {}, limit = 10, threshold = 0.7
       throw error;
     }
     
-    return data || [];
+    let results = data || [];
+
+    // 如果是嘉義市查詢，在應用層進行精確過濾
+    if (isChiayiCityQuery) {
+        const originalCount = results.length;
+        results = results.filter(item => {
+            const city = item.city ? item.city.trim() : '';
+            const address = item.address || '';
+            const district = item.district ? item.district.trim() : '';
+            
+            // 1. 絕對排除：明確標示為嘉義縣，或地址包含嘉義縣
+            if (city === '嘉義縣' || address.includes('嘉義縣')) {
+                return false;
+            }
+
+            // 2. 必須包含：嘉義市 (檢查 City 欄位或地址)
+            if (city === '嘉義市' || address.includes('嘉義市')) {
+                return true;
+            }
+
+            // 3. 寬鬆匹配：如果包含「嘉義」且行政區為東區或西區
+            if (city.includes('嘉義') && (district === '東區' || district === '西區')) {
+                return true;
+            }
+            
+            return false;
+        });
+        console.log(`🔍 嘉義市特殊處理 (Limit=500, Threshold=0.3): 原始檢索 ${originalCount} 筆 -> 過濾後剩 ${results.length} 筆`);
+    }
+    
+    return results;
   } catch (error) {
     console.error('vectorSearch 錯誤:', error.message);
     throw error;
@@ -214,8 +259,8 @@ export async function retrieveRelevantData(userParams, options = {}) {
   try {
     // 根據天數動態調整景點數量（每天 6-8 個景點）
     const days = userParams.days || 1;
-    const attractionsPerDay = 8; // 每天建議 8 個景點（AI 會挑選其中 4-6 個）
-    const restaurantsPerDay = 4; // 每天建議 4 間餐廳（早午晚 + 點心）
+    const attractionsPerDay = 15; // 增加候選數量，讓 AI 有更多選擇
+    const restaurantsPerDay = 8; // 增加餐廳候選數量
     
     const {
       attractionLimit = days * attractionsPerDay,  // 景點數量（動態調整）
@@ -226,6 +271,25 @@ export async function retrieveRelevantData(userParams, options = {}) {
     
     // 提取篩選條件
     const filters = extractFilters(userParams);
+
+    // 強制修正嘉義的邏輯：如果用戶原始查詢只說「嘉義」，則強制鎖定「嘉義市」
+    // 這是為了回應 "輸入我要去嘉義玩=我要去嘉義市玩" 的需求
+    if (userParams.specialRequirements) {
+        const query = userParams.specialRequirements;
+        // 如果查詢包含「嘉義」但沒有「縣」、「阿里山」、「梅山」等關鍵字
+        if (query.includes('嘉義') && 
+            !query.includes('嘉義縣') && 
+            !query.includes('阿里山') && 
+            !query.includes('梅山') &&
+            !query.includes('山區')) {
+            
+            console.log('🔄 檢測到用戶意圖為「嘉義市區」，強制將篩選條件設為「嘉義市」');
+            filters.city = '嘉義市';
+            // 同步更新 location，讓語意搜尋生成的向量更貼近市區
+            userParams.location = '嘉義市';
+        }
+    }
+
     console.log('📍 篩選條件:', filters);
     
     let attractions = [];
@@ -283,6 +347,55 @@ export async function retrieveRelevantData(userParams, options = {}) {
       restaurants = results.filter(item => item.category === '美食餐廳');
     }
     
+    // 針對嘉義地區的特殊過濾：
+    // 如果用戶沒有明確要求去「阿里山」或「山區」，則過濾掉遠距離的山區景點
+    // 這適用於「嘉義市」和「嘉義縣」的查詢，避免一般嘉義旅遊被阿里山景點佔據
+    const isChiayi = filters.city === '嘉義市' || filters.city === '嘉義縣';
+    const userWantsMountain = userParams.specialRequirements && 
+      (userParams.specialRequirements.includes('阿里山') || 
+       userParams.specialRequirements.includes('梅山') || 
+       userParams.specialRequirements.includes('奮起湖') ||
+       userParams.specialRequirements.includes('山'));
+
+    if (isChiayi && !userWantsMountain) {
+      const mountainKeywords = ['阿里山', '梅山', '太平雲梯', '奮起湖', '瑞里', '達娜伊谷', '隙頂', '石棹', '二延平', '雲嶺之丘'];
+      const mountainDistricts = ['阿里山鄉', '梅山鄉', '竹崎鄉', '番路鄉', '大埔鄉'];
+      
+      const originalCount = attractions.length;
+      attractions = attractions.filter(item => {
+        // 1. 檢查行政區：如果是山區鄉鎮，直接過濾
+        if (item.district && mountainDistricts.some(d => item.district.includes(d))) {
+          return false;
+        }
+        
+        // 2. 檢查關鍵字：如果名稱或描述包含山區關鍵字，過濾
+        const text = (item.name + (item.description || '') + (item.address || '')).toLowerCase();
+        if (mountainKeywords.some(kw => text.includes(kw))) return false;
+        
+        return true;
+      });
+      
+      if (attractions.length < originalCount) {
+        console.log(`🏔️ 已過濾掉 ${originalCount - attractions.length} 個嘉義山區景點，保留平原/市區景點`);
+      }
+
+      // 同樣過濾餐廳
+      const originalRestCount = restaurants.length;
+      restaurants = restaurants.filter(item => {
+        // 1. 檢查行政區
+        if (item.district && mountainDistricts.some(d => item.district.includes(d))) {
+          return false;
+        }
+        // 2. 檢查關鍵字
+        const text = (item.name + (item.description || '') + (item.address || '')).toLowerCase();
+        if (mountainKeywords.some(kw => text.includes(kw))) return false;
+        return true;
+      });
+      if (restaurants.length < originalRestCount) {
+        console.log(`🍽️ 已過濾掉 ${originalRestCount - restaurants.length} 個嘉義山區餐廳`);
+      }
+    }
+
     console.log(`✅ 檢索完成: ${attractions.length} 個景點, ${restaurants.length} 家餐廳`);
     
     return {
@@ -310,7 +423,7 @@ export async function retrieveRelevantData(userParams, options = {}) {
  * @returns {string} 格式化的文字
  */
 export function formatRetrievalForPrompt(retrievalResult, days = null) {
-  const { attractions, restaurants } = retrievalResult;
+  const { attractions, restaurants, filters } = retrievalResult;
   
   let prompt = '# 可用的真實景點和餐廳資料\n\n';
   prompt += '以下是從資料庫檢索出的真實景點和餐廳，**已按地理位置優化分組**，請充分利用這些資源規劃豐富的行程：\n\n';
@@ -318,7 +431,7 @@ export function formatRetrievalForPrompt(retrievalResult, days = null) {
   // 如果有天數，進行地理優化分組
   if (days && days > 0 && attractions.length > 0) {
     const dailyItinerary = optimizeItinerary(attractions, days, {
-      maxDistanceFromCenter: 40, // 每天行程範圍不超過 40 公里
+      maxDistanceFromCenter: 25,  // 統一限制在 25 公里以內 (避免因雙核心分佈導致過濾過多)
       sortByProximity: true,      // 按鄰近順序排列
       minLocationsPerDay: 5       // 每天至少 5 個景點
     });
@@ -461,6 +574,8 @@ export async function getRAGContext(userParams, options = {}) {
   const days = userParams.days || null;
   return formatRetrievalForPrompt(retrievalResult, days);
 }
+
+
 
 // 預設導出
 export default {

@@ -8,10 +8,13 @@ import {
     calculateRouteDistanceAndTimeSync,
     calculateTripDates,
     calculatePlayingTime,
-    calculateWilsonScore
+    calculateWilsonScore,
+    enrichWithMapsData,
+    addTravelTimes
 } from './_utils.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getRAGContext } from './utils/ragRetriever.js';
+import { retrieveRelevantData, formatRetrievalForPrompt } from './utils/ragRetriever.js';
+import { optimizeDayWithLunch } from './utils/geoOptimizer.js';
 
 // 配置 Gemini API
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -30,7 +33,7 @@ async function parseQueryWithGemini(query, res) {
         return { location: "台灣", city: "台灣", days: "一日遊", error: "錯誤: 未設置 Gemini API Key" };
     }
     try {
-        console.log(`開始使用 Gemini 解析用戶查詢: ${query}`);
+        // console.log(`開始使用 Gemini 解析用戶查詢: ${query}`);
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         const prompt = `你是一個專門解析旅遊需求的 AI。請從以下句子中提取『主要遊玩地點』、『該地點所屬的台灣縣市』和『旅遊天數』。
@@ -48,11 +51,14 @@ JSON 格式: {"location": "地點", "city": "縣市", "days": "天數"}
 - 輸出: {"location": "高雄", "city": "高雄市", "days": "兩天"}
 - 輸入: "週末去台中"
 - 輸出: {"location": "台中", "city": "台中市", "days": "兩天"}
+- 輸入: "去嘉義玩"
+- 輸出: {"location": "嘉義市", "city": "嘉義市", "days": "一日遊"}
 
 規則：
 1. 'location' 必須是台灣的真實地點。
 2. 'city' 必須是 'location' 所屬的台灣縣市。如果無法判斷，請將 'city' 設為與 'location' 相同。
-3. 'days' 如果沒有明確天數，請根據上下文推斷（例如「週末」是兩天），若無法推斷則預設為「一日遊」。`;
+3. 'days' 如果沒有明確天數，請根據上下文推斷（例如「週末」是兩天），若無法推斷則預設為「一日遊」。
+4. **特別規則**：如果用戶只提到「嘉義」而沒有明確說「嘉義縣」或「阿里山」等山區地名，請務必將 'location' 和 'city' 都設為「嘉義市」。這是為了區分市區旅遊和山區旅遊。`;
 
         const result = await model.generateContent(
             prompt,
@@ -76,7 +82,7 @@ JSON 格式: {"location": "地點", "city": "縣市", "days": "天數"}
              const location = parsedData.location || "台灣";
              return { location, city: location, days: parsedData.days || "一日遊", error: "解析不完整" };
         }
-        console.log(`Gemini 解析完成:`, parsedData);
+        // console.log(`Gemini 解析完成:`, parsedData);
         return parsedData;
 
     } catch (e) {
@@ -185,7 +191,7 @@ function buildPrompt(question, location, days, dates, weatherData, ragContext = 
     prompt += `請根據上述天氣資訊和你的專業知識，為用戶設計最適合的台灣旅遊行程。
 
 ⚠️ 強制要求（必須嚴格遵守）：
-1. **每天至少安排 3-4 個景點**（建議 4-6 個景點）
+${(location.includes('嘉義') && !question.includes('阿里山') && !question.includes('山')) ? '0. **地點限制**: 用戶偏好嘉義市區或平原行程，請盡量避免安排阿里山、梅山、奮起湖等遠距離山區景點，除非用戶明確要求。\n' : ''}1. **每天至少安排 3-4 個景點**（建議 4-6 個景點）
 2. **每天至少安排 2 餐**（午餐 + 晚餐必須有，早餐可選）
 3. **不得出現超過 2 小時的空白時段**（除了睡眠時間）
 4. **行程時間**: 每天從 09:00 開始，到 18:00-19:00 結束
@@ -193,10 +199,10 @@ function buildPrompt(question, location, days, dates, weatherData, ragContext = 
 
 基本規則：
 1. 每個行程項目都必須包含 "day" 欄位，表示是第幾天（從1開始編號，直到 ${days} 天）。
-2. 時間欄位只包含時間範圍，不要包含天數標記。
+2. **時間欄位使用建議停留時間（小時）**，而不是具體時間範圍。例如："1.5小時"、"2小時"、"0.5小時"等。
 3. 地點名稱必須是具體的、可在地圖上找到的真實景點名稱。
 4. 絕對禁止使用幻想或不存在的地點名稱。
-5. 絕對不要安排任何「交通時間」、「移動時間」等交通相關項目。
+5. **不要安排任何交通時間項目**，系統會自動計算並插入真實的交通時間。
 6. 絕對不要安排「咖啡漫步」、「休息」等模糊活動。
 7. 絕對不要推薦或安排「住宿」、「飯店」、「旅館」等過夜地點。
 8. 飲食請推薦具體店家名稱或知名美食街、夜市。
@@ -204,126 +210,38 @@ function buildPrompt(question, location, days, dates, weatherData, ragContext = 
 10. 使用繁體中文。
 11. 你的回應必須是可直接解析的純 JSON，不包含任何其他文字。
 12. ${ragContext ? '**優先使用上述「可用的真實景點和餐廳資料」中的地點來規劃行程，這些都是經過驗證的真實存在的景點。**' : ''}
+13. **請為每個行程項目標記類型**：如果是午餐或晚餐，請在 JSON 中加入 "type": "lunch" 或 "type": "dinner"。其他活動可標記為 "type": "activity"。
 
 標準時間配置範例：
-- 09:00-09:30 早餐（可選）
-- 10:00-11:30 景點1（1.5小時）
-- 12:00-13:00 午餐（1小時）
-- 13:30-15:00 景點2（1.5小時）
-- 15:30-17:00 景點3（1.5小時）
-- 17:30-18:30 景點4（1小時）
-- 19:00-20:00 晚餐（1小時）
+- 早餐（可選）
+- 景點1（建議停留 1.5 小時）
+- 景點2（建議停留 2 小時）
+- 午餐（建議停留 1 小時）
+- 景點3（建議停留 1.5 小時）
+- 景點4（建議停留 1 小時）
+- 晚餐（建議停留 1 小時）
 
 請嚴格使用以下 JSON 格式回答（這只是一個範例，請根據天數產生對應的內容）：
 {
   "title": "行程標題",
   "sections": [
     {
-      "time": "09:00-10:30",
+      "time": "建議停留 1.5 小時",
       "location": "第一個具體的地點名稱",
       "details": ["活動詳情1", "活動詳情2"],
-      "day": 1
+      "day": 1,
+      "type": "activity"
     },
     {
-      "time": "11:00-12:30",
-      "location": "第二個具體的地點名稱",
-      "details": ["活動詳情1"],
-      "day": 1
+      "time": "建議停留 1 小時",
+      "location": "午餐餐廳名稱",
+      "details": ["用餐"],
+      "day": 1,
+      "type": "lunch"
     }
   ]
 }`;
     return prompt;
-}
-
-async function enrichWithMapsData(tripData, cityLocation) {
-    if (!tripData.sections) return tripData;
-
-    const places = [...new Set(tripData.sections.map(s => s.location).filter(Boolean))];
-    
-    const placesData = {};
-    const placePromises = places.map(placeName => 
-        getPlaceDetailsSync(placeName, cityLocation).then(mapsData => {
-            if (!mapsData.error) {
-                placesData[placeName] = mapsData;
-            } else if (mapsData.error && (mapsData.error.includes('歇業') || mapsData.error.includes('closed'))) {
-                // 對於歇業地點，記錄警告但不添加到placesData中
-                console.warn(`[Trip] 地點「${placeName}」可能已歇業: ${mapsData.error}`);
-                // 可以選擇添加一個標記，表示這個地點有問題
-                placesData[placeName] = { 
-                    error: mapsData.error,
-                    is_closed: true 
-                };
-            }
-        })
-    );
-    await Promise.all(placePromises);
-
-    const sectionsWithMaps = tripData.sections.map(section => {
-        const enrichedSection = { ...section };
-        const placeName = section.location;
-        if (placeName && placesData[placeName]) {
-            const mapsInfo = placesData[placeName];
-            
-            // 檢查是否為歇業地點
-            if (mapsInfo.is_closed) {
-                enrichedSection.warning = `注意：「${placeName}」${mapsInfo.error}`;
-                enrichedSection.closure_type = mapsInfo.closure_type; // 'permanent' 或 'temporary'
-                enrichedSection.maps_data = null; // 不設置maps_data，因為地點已歇業
-            } else {
-                enrichedSection.maps_data = {
-                    rating: mapsInfo.rating || 0,
-                    user_ratings_total: mapsInfo.user_ratings_total || 0,
-                    address: mapsInfo.address || '',
-                    google_maps_name: mapsInfo.name || placeName,
-                    wilson_score: calculateWilsonScore(mapsInfo.rating, mapsInfo.user_ratings_total)
-                };
-                
-                // 加入座標資訊（地圖顯示需要）
-                if (mapsInfo.location) {
-                    enrichedSection.coordinates = {
-                        lat: mapsInfo.location.lat,
-                        lng: mapsInfo.location.lng
-                    };
-                }
-            }
-        }
-        return enrichedSection;
-    });
-
-    const routePromises = [];
-    for (let i = 0; i < sectionsWithMaps.length - 1; i++) {
-        const currentSection = sectionsWithMaps[i];
-        const nextSection = sectionsWithMaps[i+1];
-        
-        if (currentSection.day === nextSection.day && currentSection.location && nextSection.location) {
-            // 使用Places API返回的地址，如果沒有地址則使用地點名稱
-            const originAddress = currentSection.maps_data?.address || currentSection.location;
-            const destAddress = nextSection.maps_data?.address || nextSection.location;
-            
-            const promise = calculateRouteDistanceAndTimeSync(originAddress, destAddress)
-                .then(routeData => {
-                    if (!routeData.error) {
-                        // 使用具體地址或Google Maps名稱，如果沒有則使用原始名稱
-                        const fromName = currentSection.maps_data?.google_maps_name || currentSection.maps_data?.address || currentSection.location;
-                        const toName = nextSection.maps_data?.google_maps_name || nextSection.maps_data?.address || nextSection.location;
-
-                        currentSection.travel_info = {
-                            from: fromName,
-                            to: toName,
-                            distance: routeData.distance_text || '',
-                            duration: routeData.duration_text || '',
-                            duration_value: routeData.duration_value || 0,
-                            mode: routeData.mode || 'driving'
-                        };
-                    }
-                });
-            routePromises.push(promise);
-        }
-    }
-    await Promise.all(routePromises);
-
-    tripData.sections = sectionsWithMaps;
-    return tripData;
 }
 
 function calculateTripStatistics(tripData) {
@@ -420,6 +338,8 @@ export default async function handler(req, res) {
 
         // 3. RAG 檢索真實景點和餐廳資料（可選）
         let ragContext = null;
+        let ragRawData = null; // 儲存原始檢索數據
+        
         if (useRAG) {
             sendSseEvent(res, 'rag', { status: 'retrieving' });
             try {
@@ -435,12 +355,22 @@ export default async function handler(req, res) {
                     specialRequirements: naturalLanguageQuery
                 };
                 
-                ragContext = await getRAGContext(userParams, {
+                // 1. 獲取原始檢索數據
+                const retrievalResult = await retrieveRelevantData(userParams, {
                     attractionLimit: tripDays * 8,  // 每天約8個景點
                     restaurantLimit: tripDays * 5,  // 每天約5個餐廳選擇
                     threshold: 0.7,
                     separateQueries: true
                 });
+                
+                // 2. 格式化為 Prompt
+                ragContext = formatRetrievalForPrompt(retrievalResult, tripDays);
+                
+                // 3. 儲存原始數據供前端使用
+                ragRawData = {
+                    attractions: retrievalResult.attractions,
+                    restaurants: retrievalResult.restaurants
+                };
                 
                 console.log(`✅ RAG 檢索完成，檢索到 ${ragContext.length} 字元的上下文`);
                 sendSseEvent(res, 'rag', { status: 'complete', contextLength: ragContext.length });
@@ -487,7 +417,31 @@ export default async function handler(req, res) {
 
             // Parse and Enrich
             let tripData = JSON.parse(fullResponseText);
-            tripData = await enrichWithMapsData(tripData, locationName);
+            
+            // 1. Enrich with Maps Data (but skip travel times for now)
+            tripData = await enrichWithMapsData(tripData, cityForWeather, { insertTravelTimes: false });
+
+            // 2. Optimize Itinerary (Lunch Constraint)
+            const sectionsByDay = {};
+            tripData.sections.forEach(section => {
+                if (!sectionsByDay[section.day]) sectionsByDay[section.day] = [];
+                sectionsByDay[section.day].push(section);
+            });
+
+            let optimizedSections = [];
+            // Sort days to ensure order
+            const days = Object.keys(sectionsByDay).sort((a, b) => parseInt(a) - parseInt(b));
+            
+            for (const day of days) {
+                const daySections = sectionsByDay[day];
+                // Optimize day
+                const optimizedDay = optimizeDayWithLunch(daySections);
+                optimizedSections = [...optimizedSections, ...optimizedDay];
+            }
+            tripData.sections = optimizedSections;
+
+            // 3. Add Travel Times
+            tripData = await addTravelTimes(tripData);
 
             // Final Statistics
             calculateTripStatistics(tripData);
@@ -524,7 +478,8 @@ export default async function handler(req, res) {
             weather_data: weatherArray,
             question: naturalLanguageQuery,
             prompt: `包含兩個行程方案：純AI生成和RAG增強生成`,
-            itineraries: [aiItinerary, ragItinerary]
+            itineraries: [aiItinerary, ragItinerary],
+            rag_raw_data: ragRawData // 加入原始 RAG 數據
         };
 
         sendSseEvent(res, 'result', { data: formattedTripData });

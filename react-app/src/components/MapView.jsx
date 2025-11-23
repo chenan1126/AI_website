@@ -25,7 +25,7 @@ const customCSS = `
 `;
 
 const MapView = ({ itineraries }) => {
-  // 從行程中提取所有地點
+  // 從行程中提取所有地點（過濾掉交通時間項目）
   const locations = useMemo(() => {
     if (!itineraries || itineraries.length === 0) return [];
     
@@ -33,15 +33,18 @@ const MapView = ({ itineraries }) => {
     itineraries.forEach((itinerary, dayIndex) => {
       // 支援兩種數據格式：activities 或 sections
       const items = itinerary.activities || itinerary.sections || [];
-      items.forEach((item, actIndex) => {
-        if (item.location && item.coordinates) {
-          allLocations.push({
-            ...item,
-            dayIndex,
-            actIndex,
-            position: [item.coordinates.lat, item.coordinates.lng]
-          });
-        }
+      
+      // 先過濾出有效的景點項目
+      const validItems = items.filter(item => item.location && item.coordinates && !item.is_travel_time);
+      
+      // 為每個有效項目分配連續的編號
+      validItems.forEach((item, validIndex) => {
+        allLocations.push({
+          ...item,
+          dayIndex,
+          actIndex: validIndex, // 使用過濾後的連續索引
+          position: [item.coordinates.lat, item.coordinates.lng]
+        });
       });
     });
     return allLocations;
@@ -130,7 +133,7 @@ const MapView = ({ itineraries }) => {
       <style dangerouslySetInnerHTML={{ __html: customCSS }} />
       <MapContainer
         center={center}
-        zoom={12}
+        zoom={14}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >

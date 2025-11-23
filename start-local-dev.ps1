@@ -1,4 +1,6 @@
 # 本地開發環境啟動腳本
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 Write-Host "====================================" -ForegroundColor Cyan
 Write-Host "🚀 啟動本地開發環境" -ForegroundColor Cyan
 Write-Host "====================================" -ForegroundColor Cyan
@@ -24,13 +26,13 @@ if (-not (Test-Path .env)) {
 }
 
 Write-Host "🔧 啟動 Vercel Dev Server（後端 API）..." -ForegroundColor Green
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host '🔧 Vercel Dev Server (Backend)' -ForegroundColor Cyan; vercel dev --listen 3000"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Write-Host '🔧 Vercel Dev Server (Backend)' -ForegroundColor Cyan; vercel dev --listen 3000"
 
 Write-Host "⏳ 等待後端啟動..." -ForegroundColor Yellow
 Start-Sleep -Seconds 5
 
 Write-Host "🎨 啟動 Frontend Dev Server..." -ForegroundColor Green
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host '🎨 Frontend Dev Server' -ForegroundColor Cyan; cd react-app; npm run dev"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Write-Host '🎨 Frontend Dev Server' -ForegroundColor Cyan; cd react-app; npm run dev"
 
 Write-Host ""
 Write-Host "====================================" -ForegroundColor Cyan

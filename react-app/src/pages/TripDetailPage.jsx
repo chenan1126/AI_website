@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import WeatherCard from '../components/WeatherCard';
 import MapView from '../components/MapView';
 import { supabase } from '../supabaseClient';
@@ -12,7 +13,7 @@ function TripDetailPage({ session, onShowAuth }) {
   const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(1);
   const [selectedItineraryIndex, setSelectedItineraryIndex] = useState(0);
-  const [isScrolled, setIsScrolled] = useState(false);
+  const [isScrolled] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [streamingStatus, setStreamingStatus] = useState('');
@@ -20,6 +21,132 @@ function TripDetailPage({ session, onShowAuth }) {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [loadingTrip, setLoadingTrip] = useState(false); // 新增載入狀態
+  const [isEditMode, setIsEditMode] = useState(false); // 拖曳編輯模式
+  const [calculatingTraffic, setCalculatingTraffic] = useState(false); // 計算交通時間狀態
+  const [showRagSource, setShowRagSource] = useState(false);
+
+  // 新增：單一景點回報視窗狀態
+  const [attractionReportModalOpen, setAttractionReportModalOpen] = useState(false);
+  const [reportingLocation, setReportingLocation] = useState(null);
+  const [attractionReportReason, setAttractionReportReason] = useState('closed');
+  const [attractionReportDescription, setAttractionReportDescription] = useState('');
+  const [isSubmittingAttractionReport, setIsSubmittingAttractionReport] = useState(false);
+
+  // 新增：單一景點詳情視窗狀態
+  const [attractionDetailModalOpen, setAttractionDetailModalOpen] = useState(false);
+  const [selectedAttraction, setSelectedAttraction] = useState(null);
+
+  // 檢查地點是否在 RAG 來源中
+  const isVerifiedLocation = useCallback((locationName) => {
+    if (!tripData?.rag_raw_data) return false;
+    const { attractions = [], restaurants = [] } = tripData.rag_raw_data;
+    const allSpots = [...attractions, ...restaurants];
+    // 簡單的模糊匹配
+    return allSpots.some(spot => 
+      spot.name && locationName && (spot.name.includes(locationName) || locationName.includes(spot.name))
+    );
+  }, [tripData]); // 顯示 RAG 來源 Modal
+
+  // 更新行程段落時間的函數 - 現在時間是建議停留時間，不需要重新分配
+  const updateSectionTimes = useCallback((sections) => {
+    // 由於現在LLM回應的是建議停留時間和交通時間，不需要重新計算具體時間
+    // 只需要確保交通時間項目和景點項目保持正確的順序
+    return sections;
+  }, []);
+
+  // 計算交通時間
+  const handleCalculateTraffic = async () => {
+    if (!tripData || !tripData.itineraries) return;
+    
+    setCalculatingTraffic(true);
+    try {
+      const currentItinerary = tripData.itineraries[selectedItineraryIndex];
+      // 過濾掉現有的交通時間項目，只保留景點
+      const cleanSections = currentItinerary.sections.filter(s => !s.is_travel_time);
+      
+      const response = await fetch(`${API_URL}/calculate-traffic`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sections: cleanSections,
+          location: tripData.location
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('計算交通時間失敗');
+      }
+
+      const data = await response.json();
+      
+      // 更新行程數據
+      const newTripData = { ...tripData };
+      newTripData.itineraries[selectedItineraryIndex].sections = data.sections;
+      setTripData(newTripData);
+      
+      alert('交通時間已更新！');
+    } catch (error) {
+      console.error('計算交通時間錯誤:', error);
+      alert('計算交通時間失敗，請稍後再試');
+    } finally {
+      setCalculatingTraffic(false);
+    }
+  };
+
+  // 處理拖曳結束事件
+  const handleDragEnd = useCallback((result) => {
+    if (!result.destination) return;
+
+    const { source, destination } = result;
+    const sourceDay = parseInt(source.droppableId.split('-')[1]);
+    const destDay = parseInt(destination.droppableId.split('-')[1]);
+
+    if (sourceDay === destDay && source.index === destination.index) return;
+
+    // 複製行程數據
+    const newTripData = JSON.parse(JSON.stringify(tripData));
+    // 獲取所有行程，並過濾掉交通時間項目 (確保拖曳時不會有交通時間卡片干擾)
+    let allSections = newTripData.itineraries[selectedItineraryIndex].sections.filter(s => !s.is_travel_time);
+
+    if (sourceDay === destDay) {
+      // 同一天內拖曳
+      const daySections = allSections.filter(s => s.day === sourceDay);
+
+      // 移動項目
+      const [movedItem] = daySections.splice(source.index, 1);
+      daySections.splice(destination.index, 0, movedItem);
+
+      // 更新當天所有項目的時間
+      updateSectionTimes(daySections);
+
+      // 重組所有行程 (保持其他天不變)
+      allSections = allSections
+        .filter(s => s.day !== sourceDay)
+        .concat(daySections);
+    } else {
+      // 跨天拖曳
+      const sourceSections = allSections.filter(s => s.day === sourceDay);
+      const destSections = allSections.filter(s => s.day === destDay);
+
+      // 移動項目
+      const [movedItem] = sourceSections.splice(source.index, 1);
+      movedItem.day = destDay; // 更新天數
+      destSections.splice(destination.index, 0, movedItem);
+
+      // 更新兩個天的時間
+      updateSectionTimes(sourceSections);
+      updateSectionTimes(destSections);
+
+      // 重組所有行程
+      allSections = allSections
+        .filter(s => s.day !== sourceDay && s.day !== destDay)
+        .concat(sourceSections, destSections);
+    }
+
+    // 更新行程數據
+    newTripData.itineraries[selectedItineraryIndex].sections = allSections;
+    setTripData(newTripData);
+  }, [tripData, selectedItineraryIndex, updateSectionTimes]);
 
   // 保存行程函數
   const handleSaveTrip = async () => {
@@ -124,6 +251,70 @@ function TripDetailPage({ session, onShowAuth }) {
     }
   };
 
+  // 單一景點回報函數
+  const openAttractionReportModal = (locationName) => {
+    setReportingLocation(locationName);
+    setAttractionReportModalOpen(true);
+    setAttractionReportReason('closed');
+    setAttractionReportDescription('');
+  };
+
+  const closeAttractionReportModal = () => {
+    setAttractionReportModalOpen(false);
+    setReportingLocation(null);
+  };
+
+  const submitAttractionReport = async () => {
+    if (!reportingLocation) return;
+    
+    setIsSubmittingAttractionReport(true);
+    try {
+      const response = await fetch('/api/report-issue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          attractionName: reportingLocation,
+          reportType: attractionReportReason,
+          description: attractionReportDescription
+        }),
+      });
+      
+      if (response.ok) {
+        alert('感謝您的回報！我們會盡快審核並更新資料庫。');
+        closeAttractionReportModal();
+      } else {
+        alert('回報失敗，請稍後再試。');
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      alert('發生錯誤，請稍後再試。');
+    } finally {
+      setIsSubmittingAttractionReport(false);
+    }
+  };
+
+  // 開啟景點詳情
+  const openAttractionDetail = (section) => {
+    setSelectedAttraction(section);
+    setAttractionDetailModalOpen(true);
+  };
+
+  const closeAttractionDetail = () => {
+    setAttractionDetailModalOpen(false);
+    setSelectedAttraction(null);
+  };
+
+  // 從詳情頁開啟回報
+  const openReportFromDetail = () => {
+    if (selectedAttraction) {
+      openAttractionReportModal(selectedAttraction.location);
+      // 選擇性關閉詳情頁，或者保持開啟
+      // closeAttractionDetail(); 
+    }
+  };
+
   // 從路由狀態獲取數據
   const initialTripData = location.state?.tripData;
   const isGenerating = location.state?.generating;
@@ -212,7 +403,7 @@ function TripDetailPage({ session, onShowAuth }) {
                   setStreamingStatus('AI 正在生成行程...');
                 }
                 else if (eventType === 'result') {
-                  console.log('🎯 接收到 result 事件，開始處理最終數據');
+                  // console.log('🎯 接收到 result 事件，開始處理最終數據');
                   setStreamingStatus('行程規劃完成！');
                   const finalData = {
                     ...eventData.data,
@@ -222,6 +413,7 @@ function TripDetailPage({ session, onShowAuth }) {
                     prompt: capturedPrompt // 添加prompt數據
                   };
 
+                  /*
                   console.log('📦 最終行程數據結構:', {
                     hasItineraries: !!finalData.itineraries,
                     itinerariesCount: finalData.itineraries?.length || 0,
@@ -229,6 +421,7 @@ function TripDetailPage({ session, onShowAuth }) {
                     weatherDataSize: JSON.stringify(finalData.weather_data).length,
                     allKeys: Object.keys(finalData)
                   });
+                  */
 
                   // 檢查數據完整性
                   if (!finalData.itineraries || finalData.itineraries.length === 0) {
@@ -239,9 +432,9 @@ function TripDetailPage({ session, onShowAuth }) {
 
                   // 將生成的行程數據插入到 Supabase temp_trips 表
                   try {
-                    console.log('🔄 開始插入行程數據到 Supabase...');
-                    console.log('📊 行程數據大小:', JSON.stringify(finalData).length, '字符');
-                    console.log('🆔 Session ID:', sessionId);
+                    // console.log('🔄 開始插入行程數據到 Supabase...');
+                    // console.log('📊 行程數據大小:', JSON.stringify(finalData).length, '字符');
+                    // console.log('🆔 Session ID:', sessionId);
 
                     const { data: insertedData, error: insertError } = await supabase
                       .from('temp_trips')
@@ -259,13 +452,13 @@ function TripDetailPage({ session, onShowAuth }) {
                       return;
                     }
 
-                    console.log('✅ 行程數據已成功插入 Supabase，ID:', insertedData.id);
+                    // console.log('✅ 行程數據已成功插入 Supabase，ID:', insertedData.id);
 
                     // 更新 URL 以包含新的 tripId
                     const newUrl = new URL(window.location);
                     newUrl.searchParams.set('tripId', insertedData.id);
                     newUrl.searchParams.delete('generating'); // 移除 generating 參數
-                    console.log('🔗 更新 URL 從:', window.location.href, '到:', newUrl.href);
+                    // console.log('🔗 更新 URL 從:', window.location.href, '到:', newUrl.href);
                     window.history.replaceState({}, '', newUrl);
 
                   } catch (dbError) {
@@ -311,13 +504,13 @@ function TripDetailPage({ session, onShowAuth }) {
           if (error) throw error;
 
           if (data) {
-            console.log('📥 從 Supabase 載入的數據:', data);
-            console.log('📊 trip_data 結構:', data.trip_data);
+            // console.log('📥 從 Supabase 載入的數據:', data);
+            // console.log('📊 trip_data 結構:', data.trip_data);
 
             if (data.trip_data && data.trip_data.itineraries && data.trip_data.itineraries.length > 0) {
               // 有數據，直接顯示
               const loadedTrip = data.trip_data;
-              console.log('✅ 數據有效，設置 tripData:', loadedTrip);
+              // console.log('✅ 數據有效，設置 tripData:', loadedTrip);
 
               const promptFallback =
                 loadedTrip.prompt ||
@@ -333,7 +526,7 @@ function TripDetailPage({ session, onShowAuth }) {
                 prompt: promptFallback || loadedTrip.prompt
               };
 
-              console.log('🎯 最終設置的 tripData:', finalTripData);
+              // console.log('🎯 最終設置的 tripData:', finalTripData);
               setTripData(finalTripData);
 
               if (typeof loadedTrip.selectedItineraryIndex === 'number') {
@@ -407,7 +600,7 @@ function TripDetailPage({ session, onShowAuth }) {
       setStreamingStatus('正在處理您的請求...');
       startGeneration(sessionId, question)
         .then((generatedData) => {
-          console.log('✅ 行程生成完成，設置數據');
+          // console.log('✅ 行程生成完成，設置數據');
           setTripData(generatedData);
           setGenerating(false);
           setStreamingStatus('');
@@ -534,16 +727,18 @@ function TripDetailPage({ session, onShowAuth }) {
   }
 
   if (!tripData || !tripData.itineraries || tripData.itineraries.length === 0) {
+    /*
     console.log('❌ 渲染檢查失敗:', {
       hasTripData: !!tripData,
       hasItineraries: !!(tripData && tripData.itineraries),
       itinerariesLength: tripData?.itineraries?.length || 0,
       tripDataKeys: tripData ? Object.keys(tripData) : []
     });
+    */
     return null;
   }
 
-  console.log('✅ 通過渲染檢查，開始渲染行程');
+  // console.log('✅ 通過渲染檢查，開始渲染行程');
 
   // 使用選擇的行程
   const itinerary = tripData.itineraries[selectedItineraryIndex];
@@ -576,22 +771,122 @@ function TripDetailPage({ session, onShowAuth }) {
   const accommodation = getDayAccommodation(currentDaySections);
   const restaurants = getDayRestaurants(currentDaySections);
 
+  // 計算時間線時間（從早上9點開始）
+  const calculateTimelineTimes = (sections) => {
+    let currentTime = new Date();
+    currentTime.setHours(9, 0, 0, 0); // 從早上9點開始
+
+    return sections.map(section => {
+      if (section.is_travel_time) {
+        // 交通時間項目：累加交通時間到當前時間，但顯示交通時間描述
+        const travelTimeMatch = section.time?.match(/交通時間:\s*約\s*(\d+)\s*分鐘/);
+        if (travelTimeMatch) {
+          const minutes = parseInt(travelTimeMatch[1]);
+          currentTime.setTime(currentTime.getTime() + minutes * 60 * 1000);
+        }
+
+        return {
+          ...section,
+          displayTime: section.time || '交通時間',
+          actualTime: currentTime.toTimeString().slice(0, 5)
+        };
+      } else {
+        // 景點項目：顯示到達時間
+        const displayTime = currentTime.toTimeString().slice(0, 5);
+        const result = {
+          ...section,
+          displayTime,
+          actualTime: displayTime,
+          suggested_duration: section.time // 保存建議停留時間
+        };
+
+        // 如果有建議停留時間，累加時間
+        if (section.time) {
+          const durationMatch = section.time.match(/建議停留\s*(\d+(?:\.\d+)?)\s*小時/);
+          if (durationMatch) {
+            const hours = parseFloat(durationMatch[1]);
+            currentTime.setTime(currentTime.getTime() + hours * 60 * 60 * 1000);
+          }
+        }
+
+        return result;
+      }
+    });
+  };
+
+  // 應用時間計算到當前天數的行程
+  const sectionsWithTimes = calculateTimelineTimes(currentDaySections);
+
   // 渲染單個景點
   const renderLocation = (section, index) => {
     if (!section || !section.location) return null;
+
+    // 檢查是否為交通時間項目
+    const isTravelTime = section.is_travel_time === true;
+
+    if (isTravelTime) {
+      // 交通時間項目的渲染
+      return (
+        <div key={index} className="mb-4">
+          <div className="flex gap-4">
+            <div className="min-w-20 text-center">
+              <div className="bg-blue-500 text-white px-3 py-2 rounded-full text-sm font-medium mb-2.5 shadow-lg shadow-blue-500/20">
+                <i className="fas fa-route"></i>
+              </div>
+              <div className="w-3 h-3 bg-blue-500 rounded-full mx-auto border-2 border-white shadow-sm"></div>
+              {index < currentDaySections.length - 1 && (
+                <div className="w-0.5 h-full min-h-8 bg-blue-200 dark:bg-blue-700 mx-auto mt-1.5 rounded-sm"></div>
+              )}
+            </div>
+            <div className="activity-card flex-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4 shadow-sm transition-all duration-200">
+              <div className="flex items-center gap-3">
+                <i className="fas fa-clock text-blue-600 text-lg"></i>
+                <div>
+                  <p className="text-blue-800 dark:text-blue-300 font-medium">
+                    {section.time}
+                  </p>
+                  <p className="text-blue-600 dark:text-blue-400 text-sm">
+                    {section.location}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 普通景點項目的渲染
     return (
       <div key={index} className="mb-6">
         <div className="flex gap-4">
           <div className="min-w-20 text-center">
-            <div className="bg-primary text-white px-3 py-2 rounded-full text-sm font-medium mb-2.5 shadow-lg shadow-primary/20">
-              {section.time || '時間未定'}
+            <div className="bg-primary text-white px-3 py-2 rounded-full text-sm font-medium mb-2.5 shadow-lg shadow-primary/20 cursor-move">
+              <i className="fas fa-grip-vertical mr-1"></i>
+              {section.displayTime || section.time || '時間未定'}
             </div>
             <div className="w-3 h-3 bg-primary rounded-full mx-auto border-2 border-white shadow-sm"></div>
             {index < currentDaySections.length - 1 && (
               <div className="w-0.5 h-full min-h-12 bg-slate-200 dark:bg-slate-700 mx-auto mt-1.5 rounded-sm"></div>
             )}
           </div>
-          <div className="activity-card flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm min-h-48 flex flex-col justify-between transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 relative overflow-hidden">
+          <div className="activity-card flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm min-h-48 flex flex-col justify-between transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 relative overflow-hidden cursor-pointer group"
+               onClick={() => openAttractionDetail(section)}>
+            
+            {/* 點擊提示 */}
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 dark:group-hover:bg-white/5 transition-colors z-0"></div>
+            <div className="absolute top-2 right-2 text-slate-300 group-hover:text-slate-500 dark:text-slate-600 dark:group-hover:text-slate-400 transition-colors z-10">
+              <i className="fas fa-chevron-right"></i>
+            </div>
+            
+            {/* RAG 驗證標章 - 左上角 */}
+            {isVerifiedLocation(section.location) && (
+              <div className="absolute top-0 left-0 bg-blue-600 text-white text-[10px] px-2 py-1 rounded-br-lg z-10 shadow-sm flex items-center gap-1" title="此地點來自真實資料庫檢索">
+                <i className="fas fa-check-circle"></i>
+                <span>真實資料驗證</span>
+              </div>
+            )}
+
             {/* 威爾遜綜合評分 - 右上角 */}
             {section.maps_data?.wilson_score !== undefined && section.maps_data?.wilson_score !== null && (
               <div className="absolute top-4 right-4 px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-semibold rounded-full flex items-center gap-1.5 shadow-lg shadow-green-500/30 z-10">
@@ -654,6 +949,12 @@ function TripDetailPage({ session, onShowAuth }) {
                   <i className="fas fa-info-circle text-primary"></i> 活動詳情
                 </h4>
                 <ul className="pl-5 text-slate-600 dark:text-slate-400">
+                  {section.suggested_duration && (
+                    <li className="mb-1 flex items-center gap-2">
+                      <i className="fas fa-clock text-green-600 text-xs"></i>
+                      <span className="text-green-700 dark:text-green-300 font-medium">{section.suggested_duration}</span>
+                    </li>
+                  )}
                   {section.details.map((detail, i) => (
                     <li key={i} className="mb-1">{detail}</li>
                   ))}
@@ -692,6 +993,22 @@ function TripDetailPage({ session, onShowAuth }) {
             <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
               {tripData.location ? `${tripData.location} 行程` : '行程詳情'}
             </h1>
+            
+            {/* RAG 資料來源按鈕 */}
+            {tripData.rag_raw_data && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowRagSource(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800"
+                >
+                  <i className="fas fa-database"></i>
+                  查看 AI 參考的真實資料來源
+                  <span className="bg-blue-200 text-blue-800 text-xs px-2 py-0.5 rounded-full dark:bg-blue-800 dark:text-blue-200">
+                    {(tripData.rag_raw_data.attractions?.length || 0) + (tripData.rag_raw_data.restaurants?.length || 0)} 筆
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 行程選擇 */}
@@ -787,12 +1104,179 @@ function TripDetailPage({ session, onShowAuth }) {
           {/* 行程內容 */}
           <div className="space-y-12">
             <section>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                第 {selectedDay} 天行程
-              </h2>
-              <div className="timeline">
-                {currentDaySections.map((section, i) => renderLocation(section, i))}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  第 {selectedDay} 天行程
+                </h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCalculateTraffic}
+                    disabled={calculatingTraffic}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-50 transition-colors"
+                  >
+                    {calculatingTraffic ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                        計算中...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-route"></i>
+                        計算交通
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setIsEditMode(!isEditMode)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isEditMode
+                        ? 'bg-green-500 text-white hover:bg-green-600'
+                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                    }`}
+                  >
+                    <i className={`fas ${isEditMode ? 'fa-check' : 'fa-edit'}`}></i>
+                    {isEditMode ? '完成編輯' : '調整順序'}
+                  </button>
+                </div>
               </div>
+
+              {isEditMode ? (
+                <DragDropContext onDragEnd={handleDragEnd}>
+                  <Droppable droppableId={`day-${selectedDay}`}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={`timeline space-y-6 p-4 rounded-lg border-2 border-dashed transition-colors ${
+                          snapshot.isDraggingOver
+                            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                            : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                      >
+                        {sectionsWithTimes
+                          .filter(section => !section.is_travel_time)
+                          .map((section, i) => {
+                          // 普通景點項目的編輯模式渲染
+                          return (
+                            <Draggable key={`${section.day}-${i}`} draggableId={`${section.day}-${i}`} index={i}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  {...provided.dragHandleProps}
+                                  className={`mb-6 transition-transform ${
+                                    snapshot.isDragging ? 'rotate-3 scale-105' : ''
+                                  }`}
+                                >
+                                  <div className="flex gap-4">
+                                    <div className="min-w-20 text-center">
+                                      <div className="bg-primary text-white px-3 py-2 rounded-full text-sm font-medium mb-2.5 shadow-lg shadow-primary/20 cursor-move">
+                                        <i className="fas fa-grip-vertical mr-1"></i>
+                                        {section.displayTime || section.time || '時間未定'}
+                                      </div>
+                                      <div className="w-3 h-3 bg-primary rounded-full mx-auto border-2 border-white shadow-sm"></div>
+                                      {i < currentDaySections.filter(s => !s.is_travel_time).length - 1 && (
+                                        <div className="w-0.5 h-full min-h-12 bg-slate-200 dark:bg-slate-700 mx-auto mt-1.5 rounded-sm"></div>
+                                      )}
+                                    </div>
+                                    <div className="activity-card flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm min-h-48 flex flex-col justify-between transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 relative overflow-hidden">
+                                      {/* 編輯模式提示 */}
+                                      <div className="absolute top-2 left-2 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                        <i className="fas fa-arrows-alt mr-1"></i>
+                                        可拖曳調整順序
+                                      </div>
+
+                                      {/* 威爾遜綜合評分 - 右上角 */}
+                                      {section.maps_data?.wilson_score !== undefined && section.maps_data?.wilson_score !== null && (
+                                        <div className="absolute top-4 right-4 px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-semibold rounded-full flex items-center gap-1.5 shadow-lg shadow-green-500/30 z-10">
+                                          <i className="fas fa-award"></i>
+                                          <span>綜合評分: {section.maps_data.wilson_score.toFixed(1)}/5.0</span>
+                                        </div>
+                                      )}
+
+                                      <h3 className="text-slate-900 dark:text-white mb-2.5 flex items-center gap-2 font-semibold">
+                                        <i className="fas fa-map-marker-alt text-primary"></i>
+                                        {section.location}
+                                        {section.warning && (
+                                          <span className={`text-xs font-normal px-2 py-0.5 rounded border ${
+                                            section.closure_type === 'permanent'
+                                              ? 'text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-900/20 dark:border-red-800'
+                                              : 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-900/20 dark:border-orange-800'
+                                          }`}>
+                                            <i className="fas fa-exclamation-triangle"></i> {section.warning}
+                                          </span>
+                                        )}
+                                      </h3>
+
+                                      {(section.address || (section.maps_data && section.maps_data.address)) && (
+                                        <div className="text-slate-600 dark:text-slate-400 text-sm mb-0.5 flex items-start gap-1.5">
+                                          <i className="fas fa-location-arrow mt-0.5 text-slate-400"></i>
+                                          <span>{section.maps_data && section.maps_data.address ? section.maps_data.address : section.address}</span>
+                                        </div>
+                                      )}
+
+                                      {/* Google 評分資訊與威爾遜綜合評分 */}
+                                      {section.maps_data && (section.maps_data.rating || section.rating) && (
+                                        <div className="mb-4 flex items-start gap-5 flex-wrap">
+                                          {/* Google 星級評分與評論數（垂直排列） */}
+                                          <div className="flex flex-col gap-1">
+                                            {/* 星星評分 */}
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-yellow-400 text-xl leading-none tracking-wider">
+                                                {'★'.repeat(Math.floor(section.maps_data?.rating || section.rating || 0))}
+                                                {'☆'.repeat(5 - Math.floor(section.maps_data?.rating || section.rating || 0))}
+                                              </span>
+                                              <span className="text-orange-600 text-lg font-bold">
+                                                {(section.maps_data?.rating || section.rating || 0).toFixed(1)}
+                                              </span>
+                                            </div>
+
+                                            {/* 評論數（在星星下方） */}
+                                            {section.maps_data?.user_ratings_total && (
+                                              <div className="text-slate-500 text-xs flex items-center gap-1 pl-0.5">
+                                                <i className="fas fa-comment-dots text-slate-400 text-xs"></i>
+                                                <span>Google 地圖上有：{section.maps_data.user_ratings_total.toLocaleString()} 則評論</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {section.details && section.details.length > 0 && (
+                                        <div>
+                                          <h4 className="text-slate-800 dark:text-slate-200 text-base mb-2.5 flex items-center gap-2">
+                                            <i className="fas fa-info-circle text-primary"></i> 活動詳情
+                                          </h4>
+                                          <ul className="pl-5 text-slate-600 dark:text-slate-400">
+                                            {section.suggested_duration && (
+                                              <li className="mb-1 flex items-center gap-2">
+                                                <i className="fas fa-clock text-green-600 text-xs"></i>
+                                                <span className="text-green-700 dark:text-green-300 font-medium">{section.suggested_duration}</span>
+                                              </li>
+                                            )}
+                                            {section.details.map((detail, i) => (
+                                              <li key={i} className="mb-1">{detail}</li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                          );
+                        })}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+              ) : (
+                <div className="timeline">
+                  {sectionsWithTimes.map((section, i) => renderLocation(section, i))}
+                </div>
+              )}
             </section>
 
             {/* 住宿和餐廳資訊 */}
@@ -1014,6 +1498,352 @@ function TripDetailPage({ session, onShowAuth }) {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* 單一景點詳情 Modal */}
+          {attractionDetailModalOpen && selectedAttraction && (
+            <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 p-4 backdrop-blur-sm">
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-2xl w-full p-0 relative max-h-[90vh] overflow-y-auto flex flex-col">
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10 flex justify-between items-start">
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                      {selectedAttraction.location}
+                      {isVerifiedLocation(selectedAttraction.location) && (
+                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                          <i className="fas fa-check-circle"></i> 已驗證
+                        </span>
+                      )}
+                    </h3>
+                    <div className="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-2">
+                      <i className="fas fa-map-marker-alt"></i>
+                      {selectedAttraction.maps_data?.address || selectedAttraction.address || '無地址資訊'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={closeAttractionDetail}
+                    className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 overflow-y-auto">
+                  {/* 圖片 (如果有) */}
+                  {selectedAttraction.maps_data?.photo_url && (
+                    <div className="w-full h-64 rounded-lg bg-cover bg-center mb-6 shadow-md"
+                         style={{ backgroundImage: `url(${selectedAttraction.maps_data.photo_url})` }}>
+                    </div>
+                  )}
+
+                  {/* 基本資訊 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="bg-slate-50 dark:bg-slate-700/30 p-4 rounded-lg">
+                      <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+                        <i className="fas fa-info-circle text-primary"></i> 基本資訊
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        {selectedAttraction.maps_data?.rating && (
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 dark:text-slate-400">評分</span>
+                            <span className="font-medium text-slate-900 dark:text-white flex items-center gap-1">
+                              {selectedAttraction.maps_data.rating} <i className="fas fa-star text-yellow-400 text-xs"></i>
+                              <span className="text-slate-400 text-xs">({selectedAttraction.maps_data.user_ratings_total} 則評論)</span>
+                            </span>
+                          </div>
+                        )}
+                        {selectedAttraction.time && (
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 dark:text-slate-400">建議停留</span>
+                            <span className="font-medium text-slate-900 dark:text-white">{selectedAttraction.time}</span>
+                          </div>
+                        )}
+                        {selectedAttraction.maps_data?.phone && (
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 dark:text-slate-400">電話</span>
+                            <span className="font-medium text-slate-900 dark:text-white">{selectedAttraction.maps_data.phone}</span>
+                          </div>
+                        )}
+                        {selectedAttraction.maps_data?.website && (
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 dark:text-slate-400">網站</span>
+                            <a href={selectedAttraction.maps_data.website} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 dark:text-blue-400 hover:underline truncate max-w-[200px]">
+                              訪問網站
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-700/30 p-4 rounded-lg">
+                      <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+                        <i className="fas fa-clock text-green-500"></i> 營業時間
+                      </h4>
+                      <div className="text-sm text-slate-600 dark:text-slate-300">
+                        {selectedAttraction.maps_data?.opening_hours ? (
+                          Array.isArray(selectedAttraction.maps_data.opening_hours) ? (
+                            <ul className="space-y-1">
+                              {selectedAttraction.maps_data.opening_hours.map((hour, idx) => (
+                                <li key={idx}>{hour}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p>{selectedAttraction.maps_data.opening_hours}</p>
+                          )
+                        ) : (
+                          <div className="flex flex-col items-start gap-2">
+                            <p className="text-slate-400 italic">無營業時間資訊</p>
+                            <a 
+                              href={`https://www.google.com/search?q=${encodeURIComponent(selectedAttraction.location + ' 營業時間')}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:text-blue-600 text-xs flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-100 dark:border-blue-800 transition-colors"
+                            >
+                              <i className="fas fa-search"></i> 
+                              Google 搜尋
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 詳細描述 */}
+                  {selectedAttraction.details && selectedAttraction.details.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">活動詳情</h4>
+                      <ul className="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+                        {selectedAttraction.details.map((detail, i) => (
+                          <li key={i}>{detail}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* 回報區域 */}
+                  <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700">
+                    <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-lg p-4 flex items-center justify-between flex-wrap gap-4">
+                      <div>
+                        <h4 className="font-semibold text-red-700 dark:text-red-400 mb-1">發現資料錯誤？</h4>
+                        <p className="text-sm text-red-600 dark:text-red-300">
+                          如果您發現此景點已歇業、地址錯誤或其他問題，請告訴我們。
+                        </p>
+                      </div>
+                      <button
+                        onClick={openReportFromDetail}
+                        className="px-4 py-2 bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors font-medium text-sm flex items-center gap-2 shadow-sm"
+                      >
+                        <i className="fas fa-flag"></i>
+                        回報問題
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 單一景點回報模態框 */}
+          {attractionReportModalOpen && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 relative max-h-[90vh] overflow-y-auto">
+                <button
+                  onClick={() => setAttractionReportModalOpen(false)}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                >
+                  <i className="fas fa-times text-xl"></i>
+                </button>
+
+                <div className="mb-6">
+                  <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i className="fas fa-flag text-red-500 text-2xl"></i>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center">
+                    回報景點問題
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400 text-center">
+                    發現此景點有問題嗎？請告訴我們詳細情況，幫助我們改進資料庫。
+                  </p>
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  submitAttractionReport();
+                }} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      問題類型 <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={attractionReportReason}
+                      onChange={(e) => setAttractionReportReason(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    >
+                      <option value="closed">景點已關閉</option>
+                      <option value="inaccurate_info">資訊不準確</option>
+                      <option value="missing_attractions">缺少重要景點</option>
+                      <option value="wrong_schedule">時間安排不合理</option>
+                      <option value="transport_issues">交通安排問題</option>
+                      <option value="weather_issues">天氣資訊錯誤</option>
+                      <option value="other">其他問題</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      詳細描述 <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={attractionReportDescription}
+                      onChange={(e) => setAttractionReportDescription(e.target.value)}
+                      required
+                      placeholder="請詳細描述您發現的問題..."
+                      rows={4}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setAttractionReportModalOpen(false)}
+                      className="flex-1 px-4 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingAttractionReport}
+                      className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isSubmittingAttractionReport ? (
+                        <>
+                          <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                          提交中...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-paper-plane"></i>
+                          提交回報
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* RAG 資料來源 Modal */}
+          {showRagSource && tripData.rag_raw_data && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-4xl w-full p-6 relative max-h-[90vh] overflow-y-auto flex flex-col">
+                <div className="flex items-center justify-between mb-6 sticky top-0 bg-white dark:bg-slate-800 z-10 pb-4 border-b border-slate-100 dark:border-slate-700">
+                  <h3 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                      <i className="fas fa-database"></i>
+                    </div>
+                    AI 參考資料來源 (RAG)
+                  </h3>
+                  <button
+                    onClick={() => setShowRagSource(false)}
+                    className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto">
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2 sticky top-0 bg-white dark:bg-slate-800 py-2">
+                      <i className="fas fa-map-marked-alt text-green-500"></i>
+                      參考景點 ({tripData.rag_raw_data.attractions?.length || 0})
+                    </h4>
+                    <div className="space-y-3">
+                      {tripData.rag_raw_data.attractions?.map((spot, idx) => (
+                        <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-600 hover:border-green-400 dark:hover:border-green-500 transition-colors group">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="font-bold text-slate-900 dark:text-white group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">{spot.name}</div>
+                            {spot.rating && (
+                              <div className="flex items-center gap-1 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded text-xs font-bold text-yellow-600 dark:text-yellow-400 whitespace-nowrap">
+                                <i className="fas fa-star"></i> {spot.rating}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400 mt-2 flex items-start gap-2">
+                            <i className="fas fa-map-marker-alt mt-1 text-slate-400"></i>
+                            <span>{spot.address || spot.vicinity || spot.formatted_address || '無地址資訊'}</span>
+                          </div>
+                          {spot.user_ratings_total && (
+                            <div className="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                              <i className="fas fa-comment-alt"></i>
+                              {spot.user_ratings_total} 則評論
+                            </div>
+                          )}
+                          {spot.description && (
+                             <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">
+                               {spot.description}
+                             </div>
+                          )}
+                        </div>
+                      ))}
+                      {(!tripData.rag_raw_data.attractions || tripData.rag_raw_data.attractions.length === 0) && (
+                        <div className="text-center py-8 text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-300 dark:border-slate-700">
+                          無參考景點資料
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2 sticky top-0 bg-white dark:bg-slate-800 py-2">
+                      <i className="fas fa-utensils text-orange-500"></i>
+                      參考餐廳 ({tripData.rag_raw_data.restaurants?.length || 0})
+                    </h4>
+                    <div className="space-y-3">
+                      {tripData.rag_raw_data.restaurants?.map((spot, idx) => (
+                        <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-600 hover:border-orange-400 dark:hover:border-orange-500 transition-colors group">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="font-bold text-slate-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{spot.name}</div>
+                            {spot.rating && (
+                              <div className="flex items-center gap-1 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded text-xs font-bold text-yellow-600 dark:text-yellow-400 whitespace-nowrap">
+                                <i className="fas fa-star"></i> {spot.rating}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400 mt-2 flex items-start gap-2">
+                            <i className="fas fa-map-marker-alt mt-1 text-slate-400"></i>
+                            <span>{spot.address || spot.vicinity || spot.formatted_address || '無地址資訊'}</span>
+                          </div>
+                          {spot.user_ratings_total && (
+                            <div className="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                              <i className="fas fa-comment-alt"></i>
+                              {spot.user_ratings_total} 則評論
+                            </div>
+                          )}
+                          {spot.description && (
+                             <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">
+                               {spot.description}
+                             </div>
+                          )}
+                        </div>
+                      ))}
+                      {(!tripData.rag_raw_data.restaurants || tripData.rag_raw_data.restaurants.length === 0) && (
+                        <div className="text-center py-8 text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-300 dark:border-slate-700">
+                          無參考餐廳資料
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700 text-center text-sm text-slate-500">
+                  <p>這些是 AI 在生成行程前，從資料庫中檢索到的真實地點資料。AI 會根據這些資料進行篩選和安排。</p>
+                </div>
               </div>
             </div>
           )}
