@@ -88,7 +88,7 @@ function TripResults({ data }) {
         <div className="flex gap-4">
           <div className="min-w-20 text-center">
             <div className="bg-primary text-white px-3 py-2 rounded-full text-sm font-medium mb-2.5 shadow-lg shadow-primary/20">
-              {section.time || '時間未定'}
+              {section.time ? (section.time.includes(':') || section.time.includes('建議停留') ? section.time : `建議停留 ${section.time}`) : '時間未定'}
             </div>
             <div className="w-3 h-3 bg-primary rounded-full mx-auto border-2 border-white shadow-sm"></div>
             {index < totalSections - 1 && (

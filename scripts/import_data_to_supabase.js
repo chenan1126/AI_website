@@ -12,7 +12,7 @@ import 'dotenv/config';
 // 初始化 Supabase 客戶端
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // 初始化 Gemini 客戶端
@@ -30,14 +30,34 @@ let stats = {
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * 生成向量嵌入（使用 Gemini Embedding API）
+ * 生成向量嵌入(使用 Gemini Embedding API)
  * @param {string} text - 要向量化的文本
- * @returns {Promise<number[]>} 向量數組（768 維度）
+ * @returns {Promise<number[]>} 向量數組(768 維度)
  */
 async function createEmbedding(text) {
   try {
-    const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-    const result = await model.embedContent(text);
+    // 清理文本:移除多餘空白、特殊字符、控制字符、非法 Unicode
+    const cleanText = text
+      .replace(/\s+/g, ' ')           // 多個空白合併為一個
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')  // 移除零寬度字符
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')  // 移除控制字符
+      .replace(/[^\x20-\x7E\u4E00-\u9FFF\u3000-\u303F]/g, '')  // 只保留 ASCII 可見字符和中文字符
+      .trim();
+    
+    // 檢查是否有有效內容
+    if (!cleanText || cleanText.length < 3) {
+      throw new Error('文本內容無效或太短');
+    }
+    
+    // 限制長度
+    const finalText = cleanText.length > 5000 ? cleanText.substring(0, 5000) : cleanText;
+    
+    const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+    const result = await model.embedContent({
+      content: { parts: [{ text: finalText }] },
+      taskType: 'RETRIEVAL_DOCUMENT',  // 針對文檔檢索優化
+      outputDimensionality: 768         // 設定為 768 維
+    });
     return result.embedding.values;
   } catch (error) {
     console.error('生成向量失敗:', error.message);
@@ -99,19 +119,28 @@ async function processRestaurant(row) {
       return;
     }
     
-    // 組合文本用於向量化
+    // 組合文本用於向量化（明確加入城市和行政區，增加地理位置權重）
     const textForEmbedding = [
+      city,              // 明確加入城市名稱（例如：嘉義市）
+      row.Town,          // 明確加入行政區（例如：東區）
       name,
       row.Description,
       row.Add,
-      row.Town,
       '餐廳', '美食'
     ].filter(Boolean).join(' ');
     
     console.log(`處理餐廳: ${name} (${city}${row.Town || ''})`);
     
-    // 生成向量
-    const embedding = await createEmbedding(textForEmbedding);
+    // 生成向量(捕獲錯誤以繼續處理其他記錄)
+    let embedding;
+    try {
+      embedding = await createEmbedding(textForEmbedding);
+    } catch (embError) {
+      console.error(`⚠️  跳過(向量生成失敗): ${name} - ${embError.message}`);
+      stats.skipped++;
+      stats.processed++;
+      return;
+    }
     
     // 提取特色標籤
     const features = [];
@@ -177,20 +206,29 @@ async function processAttraction(row) {
       return;
     }
     
-    // 組合文本用於向量化
+    // 組合文本用於向量化（明確加入城市和行政區，增加地理位置權重）
     const textForEmbedding = [
+      city,              // 明確加入城市名稱（例如：嘉義市）
+      row.Town,          // 明確加入行政區（例如：東區）
       name,
       row.Description || row.Toldescribe,
       row.Add,
-      row.Town,
       row.Keyword,
       '景點', '觀光'
     ].filter(Boolean).join(' ');
     
     console.log(`處理景點: ${name} (${city}${row.Town || ''})`);
     
-    // 生成向量
-    const embedding = await createEmbedding(textForEmbedding);
+    // 生成向量(捕獲錯誤以繼續處理其他記錄)
+    let embedding;
+    try {
+      embedding = await createEmbedding(textForEmbedding);
+    } catch (embError) {
+      console.error(`⚠️  跳過(向量生成失敗): ${name} - ${embError.message}`);
+      stats.skipped++;
+      stats.processed++;
+      return;
+    }
     
     // 分類判斷
     let category = '觀光景點';
@@ -272,8 +310,8 @@ async function main() {
   console.log('╚════════════════════════════════════════╝\n');
   
   // 檢查環境變數
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('❌ 請在 .env 中設定 SUPABASE_URL 和 SUPABASE_SERVICE_KEY');
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('❌ 請在 .env 中設定 SUPABASE_URL 和 SUPABASE_SERVICE_ROLE_KEY');
     process.exit(1);
   }
   

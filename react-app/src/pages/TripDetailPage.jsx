@@ -455,26 +455,36 @@ function TripDetailPage({ session, onShowAuth }) {
 
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
+          let buffer = '';
 
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n\n');
+            buffer += chunk;
+            
+            // 使用雙換行符分割事件，確保處理完整的 SSE 訊息
+            const parts = buffer.split('\n\n');
+            // 保留最後一個可能不完整的部分
+            buffer = parts.pop();
 
-            for (const line of lines) {
-              if (!line.trim()) continue;
+            for (const part of parts) {
+              if (!part.trim()) continue;
 
-              const eventMatch = line.match(/^event: (.+)$/m);
+              const lines = part.split('\n');
+              let eventType = '';
               const dataLines = [];
-              const dataMatches = line.matchAll(/^data: (.*)$/gm);
-              for (const match of dataMatches) {
-                dataLines.push(match[1]);
+
+              for (const line of lines) {
+                if (line.startsWith('event: ')) {
+                  eventType = line.substring(7).trim();
+                } else if (line.startsWith('data: ')) {
+                  dataLines.push(line.substring(6));
+                }
               }
 
-              if (eventMatch && dataLines.length > 0) {
-                const eventType = eventMatch[1];
+              if (eventType && dataLines.length > 0) {
                 let eventData;
 
                 try {
@@ -500,6 +510,13 @@ function TripDetailPage({ session, onShowAuth }) {
                   } else if (eventData.data) {
                     weatherData = eventData.data;
                     setStreamingStatus('天氣資訊已獲取，正在生成行程...');
+                  }
+                }
+                else if (eventType === 'rag') {
+                  if (eventData.status === 'retrieving') {
+                    setStreamingStatus('正在檢索真實景點資料庫...');
+                  } else if (eventData.status === 'complete') {
+                    setStreamingStatus('檢索完成，正在整合資料...');
                   }
                 }
                 else if (eventType === 'generation') {
@@ -531,6 +548,8 @@ function TripDetailPage({ session, onShowAuth }) {
                   if (!finalData.itineraries || finalData.itineraries.length === 0) {
                     console.error('❌ 行程數據缺少 itineraries:', finalData);
                     reject(new Error('生成的行程數據無效'));
+                    // 跳出流讀取迴圈
+                    reader.cancel();
                     return;
                   }
 
@@ -553,6 +572,8 @@ function TripDetailPage({ session, onShowAuth }) {
                       console.error('❌ 插入臨時行程失敗:', insertError);
                       console.error('❌ 錯誤詳情:', JSON.stringify(insertError, null, 2));
                       reject(new Error('無法保存行程數據'));
+                      // 跳出流讀取迴圈
+                      reader.cancel();
                       return;
                     }
 
@@ -568,14 +589,29 @@ function TripDetailPage({ session, onShowAuth }) {
                   } catch (dbError) {
                     console.error('數據庫操作失敗:', dbError);
                     reject(new Error('數據庫操作失敗'));
+                    // 跳出流讀取迴圈
+                    reader.cancel();
                     return;
                   }
 
                   resolve(finalData);
+                  // ✅ 重要：在成功 resolve 後立即結束流讀取
+                  reader.cancel();
+                  break;
+                }
+                else if (eventType === 'done') {
+                  // ✅ 收到完成信號，結束流讀取
+                  console.log('✅ 後端已完成所有處理');
+                  // 結束流讀取迴圈
+                  reader.cancel();
+                  break;
                 }
                 else if (eventType === 'error') {
                   console.error('串流錯誤:', eventData.message);
                   reject(new Error(eventData.message));
+                  // 結束流讀取迴圈
+                  reader.cancel();
+                  break;
                 }
               }
             }
@@ -880,13 +916,24 @@ function TripDetailPage({ session, onShowAuth }) {
     let currentTime = new Date();
     currentTime.setHours(9, 0, 0, 0); // 從早上9點開始
 
-    return sections.map(section => {
+    return sections.map((section, index) => {
       if (section.is_travel_time) {
         // 交通時間項目：累加交通時間到當前時間，但顯示交通時間描述
-        const travelTimeMatch = section.time?.match(/交通時間:\s*約\s*(\d+)\s*分鐘/);
-        if (travelTimeMatch) {
-          const minutes = parseInt(travelTimeMatch[1]);
-          currentTime.setTime(currentTime.getTime() + minutes * 60 * 1000);
+        let minutes = 0;
+        
+        // 確保 section.time 是字串再進行 match
+        if (typeof section.time === 'string') {
+            const travelTimeMatch = section.time.match(/交通時間:\s*約\s*(\d+)\s*分鐘/);
+            if (travelTimeMatch) {
+                minutes = parseInt(travelTimeMatch[1]);
+            }
+        } else if (section.travel_info && section.travel_info.duration_value) {
+            // 如果 time 不是字串，嘗試從 travel_info 獲取
+            minutes = Math.round(section.travel_info.duration_value / 60);
+        }
+
+        if (minutes > 0) {
+            currentTime.setTime(currentTime.getTime() + minutes * 60 * 1000);
         }
 
         return {
@@ -896,24 +943,69 @@ function TripDetailPage({ session, onShowAuth }) {
         };
       } else {
         // 景點項目：顯示到達時間
-        const displayTime = currentTime.toTimeString().slice(0, 5);
-        const result = {
-          ...section,
-          displayTime,
-          actualTime: displayTime,
-          suggested_duration: section.time // 保存建議停留時間
-        };
+        const startTime = currentTime.toTimeString().slice(0, 5);
+        let durationMinutes = 60; // 默認停留 1 小時
 
-        // 如果有建議停留時間，累加時間
+        // 解析建議停留時間
         if (section.time) {
-          const durationMatch = section.time.match(/建議停留\s*(\d+(?:\.\d+)?)\s*小時/);
-          if (durationMatch) {
-            const hours = parseFloat(durationMatch[1]);
-            currentTime.setTime(currentTime.getTime() + hours * 60 * 60 * 1000);
+          const timeStr = String(section.time);
+          // 優先匹配 "建議停留 X 小時"
+          const suggestedMatch = timeStr.match(/建議停留\s*(\d+(?:\.\d+)?)\s*小時/);
+          
+          if (suggestedMatch) {
+            const hours = parseFloat(suggestedMatch[1]);
+            durationMinutes = Math.round(hours * 60);
+          } else if (timeStr.includes("小時")) {
+            const hours = parseFloat(timeStr.replace(/[^0-9.]/g, ''));
+            if (!isNaN(hours)) durationMinutes = Math.round(hours * 60);
+          } else if (timeStr.includes("分鐘")) {
+            const mins = parseFloat(timeStr.replace(/[^0-9.]/g, ''));
+            if (!isNaN(mins)) durationMinutes = Math.round(mins);
+          } else {
+            // 嘗試直接解析數字 (假設單位是小時)
+            const val = parseFloat(timeStr);
+            if (!isNaN(val)) {
+                // 如果數值小於 12，假設是小時；如果大於 12，假設是分鐘 (簡單啟發式)
+                durationMinutes = val <= 12 ? Math.round(val * 60) : Math.round(val);
+            }
           }
         }
 
-        return result;
+        // 計算結束時間
+        const endTimeDate = new Date(currentTime.getTime() + durationMinutes * 60000);
+        const endTime = endTimeDate.toTimeString().slice(0, 5);
+        
+        // 更新當前時間為結束時間
+        currentTime.setTime(endTimeDate.getTime());
+
+        // 檢查下一個 section 是否為交通時間
+        //const nextSection = sections[index + 1];
+        //const isNextTravel = nextSection && nextSection.is_travel_time;
+
+        // 如果下一個不是交通時間，且不是最後一個，則加上 30 分鐘緩衝/交通時間
+        //if (!isNextTravel && index < sections.length - 1) {
+        //     currentTime.setTime(currentTime.getTime() + 30 * 60000);
+        //}
+
+        const displayTime = `${startTime} - ${endTime}`;
+
+        // 格式化建議停留時間顯示
+        let formattedDuration = section.time;
+        if (typeof section.time === 'number' || (typeof section.time === 'string' && !isNaN(parseFloat(section.time)) && !section.time.includes('小時') && !section.time.includes('分鐘'))) {
+            const val = parseFloat(section.time);
+            if (val <= 12) {
+                formattedDuration = `${val} 小時`;
+            } else {
+                formattedDuration = `${val} 分鐘`;
+            }
+        }
+
+        return {
+          ...section,
+          displayTime,
+          actualTime: startTime,
+          suggested_duration: formattedDuration // 保存格式化後的建議停留時間
+        };
       }
     });
   };

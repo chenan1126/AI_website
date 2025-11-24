@@ -3,8 +3,11 @@
 -- ================================================
 -- 在 Supabase SQL Editor 中執行此腳本
 
+-- 先刪除舊的 function（強制刪除所有相關依賴）
+DROP FUNCTION IF EXISTS match_attractions(vector,double precision,integer,text,text) CASCADE;
+
 -- 建立向量搜尋函數
-CREATE OR REPLACE FUNCTION match_attractions(
+CREATE FUNCTION match_attractions(
   query_embedding VECTOR(768),           -- 查詢的向量（Gemini 768維度）
   match_threshold FLOAT DEFAULT 0.7,     -- 相似度閾值（0.0-1.0）
   match_count INT DEFAULT 10,            -- 返回結果數量
@@ -43,10 +46,10 @@ BEGIN
     1 - (t.embedding <=> query_embedding) AS similarity
   FROM tourist_attractions t
   WHERE 
-    -- 城市過濾（如果提供）
-    (filter_city IS NULL OR t.city = filter_city)
+    -- 城市過濾（如果提供）使用 LIKE 進行模糊匹配，並去除空白
+    (filter_city IS NULL OR TRIM(t.city) LIKE TRIM(filter_city) || '%' OR TRIM(t.city) = TRIM(filter_city))
     -- 類別過濾（如果提供）
-    AND (filter_category IS NULL OR t.category = filter_category)
+    AND (filter_category IS NULL OR TRIM(t.category) = TRIM(filter_category))
     -- 相似度必須高於閾值
     AND 1 - (t.embedding <=> query_embedding) > match_threshold
   ORDER BY t.embedding <=> query_embedding  -- 按相似度排序

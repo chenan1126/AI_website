@@ -383,7 +383,7 @@ export function optimizeDayWithLunch(locations) {
     (loc.type === 'lunch') ||
     (loc.location && loc.location.includes('午餐')) || 
     (loc.details && Array.isArray(loc.details) && loc.details.some(d => d.includes('午餐'))) ||
-    (loc.time && loc.time.includes('午餐'))
+    (loc.time && typeof loc.time === 'string' && loc.time.includes('午餐'))
   );
 
   // 預處理：確保所有地點都有 lat/lng

@@ -237,15 +237,15 @@ function getWeatherForDateFromForecast(data, dateStr) {
             console.warn(`[Weather Parser] 找不到 ${dateStr} 的天氣預報資料，返回默認數據`);
             // 返回默認的天氣數據，而不是錯誤
             return {
-                condition: '晴天',
-                temp: '25',
-                min_temp: '22',
-                max_temp: '28',
-                rain_chance: '10',
-                uvi: '5',
-                uv_exposure_level: '中等',
-                description: '天氣資訊暫時無法獲取，請以實際天氣為準。',
-                icon: '☀️',
+                condition: '',
+                temp: '',
+                min_temp: '',
+                max_temp: '',
+                rain_chance: '',
+                uvi: '',
+                uv_exposure_level: '',
+                description: '天氣資訊無法獲取，請以實際天氣為準。',
+                icon: '',
                 date: dateStr,
                 is_default: true // 標記這是默認數據
             };
@@ -379,18 +379,18 @@ export async function getMultiDayWeatherSync(cityName, dates) {
 /**
  * 異步獲取 Google Maps 景點詳情
  * @param {string} placeName - 景點名稱
- * @param {string} [location="台灣"] - 地點偏好
+ * @param {string} [city="台灣"] - 縣市偏好
  * @returns {Promise<object>} 景點詳情或錯誤物件
  */
-export async function getPlaceDetailsSync(placeName, location = "台灣") {
-    console.log(`[Maps] 正在查詢景點「${placeName}」的詳細資訊（限制在：${location}）...`);
+export async function getPlaceDetailsSync(placeName, city = "台灣") {
+    console.log(`[Maps] 正在查詢景點「${placeName}」的詳細資訊（限制在：${city}）...`);
     if (!GOOGLE_MAPS_API_KEY) {
         console.error("[Maps] Google Maps API Key 未設置");
         return { error: "Google Maps API Key 未設置" };
     }
     try {
         // 1. Find Place ID - 在查詢中直接加入城市限制
-        const searchQuery = `${placeName} ${location}`;
+        const searchQuery = `${placeName} ${city}`;
         const findPlaceUrl = new URL("https://maps.googleapis.com/maps/api/place/findplacefromtext/json");
         findPlaceUrl.searchParams.append('input', searchQuery);
         findPlaceUrl.searchParams.append('inputtype', 'textquery');
@@ -403,7 +403,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         const searchData = await searchResponse.json();
 
         if (searchData.status !== 'OK' || !searchData.candidates || searchData.candidates.length === 0) {
-            console.warn(`[Maps] 找不到景點: ${placeName} (在 ${location})`);
+            console.warn(`[Maps] 找不到景點: ${placeName} (在 ${city})`);
             return { error: `找不到景點: ${placeName}` };
         }
         
@@ -416,14 +416,14 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
             // 檢查地址是否包含目標城市（支援部分匹配）
             // 統一將「臺」轉為「台」以進行比較
             const normalizedAddress = address.replace(/\s+/g, '').replace(/臺/g, '台'); 
-            const normalizedLocation = location.replace(/\s+/g, '').replace(/臺/g, '台');
+            const normalizedCity = city.replace(/\s+/g, '').replace(/臺/g, '台');
             
             // 檢查是否包含城市名稱的任何形式
             const cityVariants = [
-                normalizedLocation,
-                normalizedLocation.replace('縣', '').replace('市', ''), // 移除縣市字樣
-                normalizedLocation.replace('縣', '市'), // 縣改市
-                normalizedLocation.replace('市', '縣'), // 市改縣
+                normalizedCity,
+                normalizedCity.replace('縣', '').replace('市', ''), // 移除縣市字樣
+                normalizedCity.replace('縣', '市'), // 縣改市
+                normalizedCity.replace('市', '縣'), // 市改縣
             ];
             
             const addressContainsCity = cityVariants.some(variant => 
@@ -431,7 +431,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
                 address.includes(variant)
             );
             
-            if (addressContainsCity || location === "台灣") {
+            if (addressContainsCity || city === "台灣") {
                 selectedCandidate = candidate;
                 // console.log(`[Maps] ✓ 選擇地點: ${candidate.name} (地址包含 ${location})`);
                 break;
@@ -441,7 +441,7 @@ export async function getPlaceDetailsSync(placeName, location = "台灣") {
         // 如果沒有找到符合城市的候選，使用最佳匹配
         if (!selectedCandidate && searchData.candidates.length > 0) {
             selectedCandidate = searchData.candidates[0];
-            console.warn(`[Maps] ⚠️ 警告: 找不到位於「${location}」的「${placeName}」，使用最佳搜尋結果: ${selectedCandidate.formatted_address}`);
+            console.warn(`[Maps] ⚠️ 警告: 找不到位於「${city}」的「${placeName}」，使用最佳搜尋結果: ${selectedCandidate.formatted_address}`);
         }
         
         const placeId = selectedCandidate.place_id;
@@ -1006,18 +1006,18 @@ export async function addTravelTimes(tripData) {
 /**
  * 為行程數據添加 Google Maps 資訊和交通時間
  * @param {object} tripData - 原始行程數據
- * @param {string} cityLocation - 城市位置偏好
+ * @param {string} city - 縣市偏好
  * @param {object} options - 選項 { insertTravelTimes: boolean }
  * @returns {Promise<object>} 豐富化後的行程數據
  */
-export async function enrichWithMapsData(tripData, cityLocation, options = { insertTravelTimes: true }) {
+export async function enrichWithMapsData(tripData, city, options = { insertTravelTimes: true }) {
     if (!tripData.sections) return tripData;
 
     const places = [...new Set(tripData.sections.map(s => s.location).filter(Boolean))];
 
     const placesData = {};
     const placePromises = places.map(placeName =>
-        getPlaceDetailsSync(placeName, cityLocation).then(mapsData => {
+        getPlaceDetailsSync(placeName, city).then(mapsData => {
             if (!mapsData.error) {
                 placesData[placeName] = mapsData;
             } else if (mapsData.error && (mapsData.error.includes('歇業') || mapsData.error.includes('closed'))) {
@@ -1084,14 +1084,14 @@ export async function enrichWithMapsData(tripData, cityLocation, options = { ins
 /**
  * 僅獲取地點座標（輕量級查詢）
  * @param {string} placeName - 景點名稱
- * @param {string} [location="台灣"] - 地點偏好
+ * @param {string} [city="台灣"] - 縣市偏好
  * @returns {Promise<object>} 座標物件 { lat, lng } 或 null
  */
-export async function getPlaceCoordinatesSync(placeName, location = "台灣") {
+export async function getPlaceCoordinatesSync(placeName, city = "台灣") {
     if (!GOOGLE_MAPS_API_KEY) return null;
     
     try {
-        const searchQuery = `${placeName} ${location}`;
+        const searchQuery = `${placeName} ${city}`;
         const findPlaceUrl = new URL("https://maps.googleapis.com/maps/api/place/findplacefromtext/json");
         findPlaceUrl.searchParams.append('input', searchQuery);
         findPlaceUrl.searchParams.append('inputtype', 'textquery');
@@ -1100,7 +1100,7 @@ export async function getPlaceCoordinatesSync(placeName, location = "台灣") {
         findPlaceUrl.searchParams.append('language', 'zh-TW');
         findPlaceUrl.searchParams.append('key', GOOGLE_MAPS_API_KEY);
 
-        const response = await fetchWithTimeout(findPlaceUrl.toString(), {}, 2000); // 短超時
+        const response = await fetchWithTimeout(findPlaceUrl.toString(), {}, 5000); // 增加到 5 秒
         const data = await response.json();
 
         if (data.status === 'OK' && data.candidates && data.candidates.length > 0) {
@@ -1119,10 +1119,10 @@ export async function getPlaceCoordinatesSync(placeName, location = "台灣") {
 /**
  * 為行程中缺少座標的地點補充座標（用於後端優化）
  * @param {object} tripData - 行程數據
- * @param {string} cityLocation - 城市
+ * @param {string} city - 縣市
  * @returns {Promise<object>} 更新後的行程數據
  */
-export async function enrichWithCoordinates(tripData, cityLocation) {
+export async function enrichWithCoordinates(tripData, city) {
     if (!tripData.sections) return tripData;
 
     // 找出缺少座標的地點
@@ -1136,14 +1136,34 @@ export async function enrichWithCoordinates(tripData, cityLocation) {
     console.log(`[Maps] 正在為 ${missingCoordsPlaces.length} 個地點補充座標...`);
 
     const coordsMap = {};
-    // 平行請求，但限制並發數以免觸發 API 限制（這裡簡單全並發，因為數量通常不多）
-    const promises = missingCoordsPlaces.map(place => 
-        getPlaceCoordinatesSync(place, cityLocation).then(coords => {
-            if (coords) coordsMap[place] = coords;
-        })
-    );
-
-    await Promise.all(promises);
+    
+    // 限制並發數量，避免觸發 API 限制（每次最多 5 個同時請求以提高速度）
+    const maxConcurrent = 5;
+    
+    for (let i = 0; i < missingCoordsPlaces.length; i += maxConcurrent) {
+        const batch = missingCoordsPlaces.slice(i, i + maxConcurrent);
+        
+        const batchPromises = batch.map(place => 
+            getPlaceCoordinatesSync(place, city)
+                .then(coords => {
+                    if (coords) {
+                        coordsMap[place] = coords;
+                    }
+                    return coords;
+                })
+                .catch(err => {
+                    // 靜默失敗，允許下一步繼續
+                    return null;
+                })
+        );
+        
+        await Promise.allSettled(batchPromises);
+        
+        // 批次之間稍作延遲，避免 API 限流（縮短到 100ms）
+        if (i + maxConcurrent < missingCoordsPlaces.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
 
     // 更新行程
     tripData.sections.forEach(section => {
@@ -1157,6 +1177,9 @@ export async function enrichWithCoordinates(tripData, cityLocation) {
             }
         }
     });
+
+    const successCount = Object.keys(coordsMap).length;
+    console.log(`[Maps] 座標補充完成！成功 ${successCount}/${missingCoordsPlaces.length} 個地點`);
 
     return tripData;
 }

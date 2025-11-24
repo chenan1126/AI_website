@@ -26,8 +26,11 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  */
 async function createEmbedding(text) {
   try {
-    const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-    const result = await model.embedContent(text);
+    const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+    const result = await model.embedContent({
+      content: { parts: [{ text }] },
+      outputDimensionality: 768
+    });
     return result.embedding.values;
   } catch (error) {
     console.error('生成向量失敗:', error.message);
@@ -44,59 +47,59 @@ function extractFilters(params) {
   const filters = {};
   
   // 提取城市
-  if (params.location || params.city) {
-    const location = params.location || params.city;
+  if (params.city) {
+    const city = params.city;
     // 處理常見的城市名稱格式，統一使用「台」而非「臺」
-    if (location.includes('台北') || location.includes('臺北')) {
+    if (city.includes('台北') || city.includes('臺北')) {
       filters.city = '台北市';
-    } else if (location.includes('新北')) {
+    } else if (city.includes('新北')) {
       filters.city = '新北市';
-    } else if (location.includes('桃園')) {
+    } else if (city.includes('桃園')) {
       filters.city = '桃園市';
-    } else if (location.includes('台中') || location.includes('臺中')) {
+    } else if (city.includes('台中') || city.includes('臺中')) {
       filters.city = '台中市';
-    } else if (location.includes('台南') || location.includes('臺南')) {
+    } else if (city.includes('台南') || city.includes('臺南')) {
       filters.city = '台南市';
-    } else if (location.includes('高雄')) {
+    } else if (city.includes('高雄')) {
       filters.city = '高雄市';
-    } else if (location.includes('基隆')) {
+    } else if (city.includes('基隆')) {
       filters.city = '基隆市';
-    } else if (location.includes('新竹')) {
+    } else if (city.includes('新竹')) {
       // 需要判斷是新竹市還是新竹縣
-      filters.city = location.includes('縣') ? '新竹縣' : '新竹市';
-    } else if (location.includes('嘉義') || location.includes('阿里山')) {
+      filters.city = city.includes('縣') ? '新竹縣' : '新竹市';
+    } else if (city.includes('嘉義') || city.includes('阿里山')) {
       // 如果是阿里山或明確指定嘉義縣 -> 嘉義縣
-      if (location.includes('阿里山') || location.includes('縣')) {
+      if (city.includes('阿里山') || city.includes('縣')) {
         filters.city = '嘉義縣';
       } else {
         // 否則預設為嘉義市 (例如只輸入「嘉義」)
         filters.city = '嘉義市';
       }
-    } else if (location.includes('台東') || location.includes('臺東')) {
+    } else if (city.includes('台東') || city.includes('臺東')) {
       filters.city = '台東縣';
-    } else if (location.includes('宜蘭')) {
+    } else if (city.includes('宜蘭')) {
       filters.city = '宜蘭縣';
-    } else if (location.includes('花蓮')) {
+    } else if (city.includes('花蓮')) {
       filters.city = '花蓮縣';
-    } else if (location.includes('屏東')) {
+    } else if (city.includes('屏東')) {
       filters.city = '屏東縣';
-    } else if (location.includes('雲林')) {
+    } else if (city.includes('雲林')) {
       filters.city = '雲林縣';
-    } else if (location.includes('南投')) {
+    } else if (city.includes('南投')) {
       filters.city = '南投縣';
-    } else if (location.includes('彰化')) {
+    } else if (city.includes('彰化')) {
       filters.city = '彰化縣';
-    } else if (location.includes('苗栗')) {
+    } else if (city.includes('苗栗')) {
       filters.city = '苗栗縣';
-    } else if (location.includes('澎湖')) {
+    } else if (city.includes('澎湖')) {
       filters.city = '澎湖縣';
-    } else if (location.includes('金門')) {
+    } else if (city.includes('金門')) {
       filters.city = '金門縣';
-    } else if (location.includes('連江') || location.includes('馬祖')) {
+    } else if (city.includes('連江') || city.includes('馬祖')) {
       filters.city = '連江縣';
     } else {
       // 如果已經是完整城市名稱（包含「市」或「縣」），直接使用
-      filters.city = location;
+      filters.city = city;
     }
   }
   
@@ -163,8 +166,8 @@ function buildSemanticQuery(params) {
   }
   
   // 加入地點
-  if (params.location) {
-    parts.push(`在${params.location}地區`);
+  if (params.city) {
+    parts.push(`在${params.city}地區`);
   }
   
   // 加入特殊需求
@@ -188,22 +191,20 @@ async function vectorSearch(queryText, filters = {}, limit = 10, threshold = 0.7
     // 生成查詢向量
     const queryEmbedding = await createEmbedding(queryText);
     
-    // 針對嘉義市查詢的特殊處理策略：
-    // 1. 不在 RPC 層級過濾城市 (避免資料庫欄位可能有空白或其他字元導致完全匹配失敗)
-    // 2. 大幅增加檢索數量 (300筆)，確保即使阿里山景點佔據前茅，也能撈到市區景點
-    // 3. 降低相似度閾值 (0.4)，避免市區景點因相關度稍低被切掉
-    const isChiayiCityQuery = filters.city === '嘉義市';
+    // ⚠️ 關鍵修復：不在 RPC 層級過濾城市
+    // 原因：Supabase 中的 city 欄位可能有空白、大小寫不一致等問題
+    // 導致精確匹配 (=) 完全找不到任何結果
+    // 改為在應用層過濾，更靈活且可控
     
-    const rpcFilterCity = isChiayiCityQuery ? null : (filters.city || null);
-    const rpcLimit = isChiayiCityQuery ? 500 : limit; // 再次大幅增加檢索數量
-    const rpcThreshold = isChiayiCityQuery ? 0.3 : threshold; // 再次降低閾值以包含更多結果
+    const rpcLimit = limit * 2; // 增加檢索數量以確保有足夠的候選
+    const rpcThreshold = threshold * 0.9; // 略微降低閾值
 
-    // 呼叫 Supabase 向量搜尋函數
+    // 呼叫 Supabase 向量搜尋函數（不傳 filter_city，讓應用層自己過濾）
     const { data, error } = await supabase.rpc('match_attractions', {
       query_embedding: queryEmbedding,
       match_threshold: rpcThreshold,
       match_count: rpcLimit,
-      filter_city: rpcFilterCity,
+      filter_city: null,  // ✅ 改為 null，不在 RPC 層級過濾
       filter_category: filters.category || null
     });
     
@@ -214,9 +215,29 @@ async function vectorSearch(queryText, filters = {}, limit = 10, threshold = 0.7
     
     let results = data || [];
 
-    // 如果是嘉義市查詢，在應用層進行精確過濾
-    if (isChiayiCityQuery) {
+    // 在應用層進行城市過濾（應對資料庫中可能的空白、大小寫差異等問題）
+    if (filters.city) {
+        // 統一處理「台」與「臺」
+        const normalizeCity = (str) => str ? str.trim().toLowerCase().replace(/臺/g, '台') : '';
+        const targetCity = normalizeCity(filters.city);
+        
         const originalCount = results.length;
+        
+        results = results.filter(item => {
+            const city = normalizeCity(item.city);
+            const address = normalizeCity(item.address || '');
+            const district = normalizeCity(item.district || '');
+            
+            // 精確匹配或前綴匹配
+            return city === targetCity || city.startsWith(targetCity) || address.includes(targetCity) || district.includes(targetCity);
+        });
+        
+        console.log(`🏙️ 城市過濾 (${filters.city}): 原始檢索 ${originalCount} 筆 -> 過濾後 ${results.length} 筆`);
+    }
+
+    // 特別處理嘉義市查詢：進一步精細化
+    const isChiayiCityQuery = filters.city === '嘉義市';
+    if (isChiayiCityQuery && results.length > 0) {
         results = results.filter(item => {
             const city = item.city ? item.city.trim() : '';
             const address = item.address || '';
@@ -239,7 +260,7 @@ async function vectorSearch(queryText, filters = {}, limit = 10, threshold = 0.7
             
             return false;
         });
-        console.log(`🔍 嘉義市特殊處理 (Limit=500, Threshold=0.3): 原始檢索 ${originalCount} 筆 -> 過濾後剩 ${results.length} 筆`);
+        console.log(`🔍 嘉義市精細過濾完成`);
     }
     
     return results;
@@ -257,15 +278,15 @@ async function vectorSearch(queryText, filters = {}, limit = 10, threshold = 0.7
  */
 export async function retrieveRelevantData(userParams, options = {}) {
   try {
-    // 根據天數動態調整景點數量（每天 6-8 個景點）
+    // 根據天數動態調整景點數量（每天 10 個景點 + 5 個餐廳）
     const days = userParams.days || 1;
-    const attractionsPerDay = 15; // 增加候選數量，讓 AI 有更多選擇
-    const restaurantsPerDay = 8; // 增加餐廳候選數量
+    const attractionsPerDay = 10; // 每天 10 個景點
+    const restaurantsPerDay = 5; // 每天 5 個餐廳
     
     const {
       attractionLimit = days * attractionsPerDay,  // 景點數量（動態調整）
       restaurantLimit = days * restaurantsPerDay,  // 餐廳數量（動態調整）
-      threshold = 0.65,      // 相似度閾值（降低以獲得更多結果）
+      threshold = 0.25,      // 降低預設閾值 (0.35 -> 0.25) 以獲得更多結果
       separateQueries = true // 是否分別查詢景點和餐廳
     } = options;
     
@@ -285,8 +306,6 @@ export async function retrieveRelevantData(userParams, options = {}) {
             
             console.log('🔄 檢測到用戶意圖為「嘉義市區」，強制將篩選條件設為「嘉義市」');
             filters.city = '嘉義市';
-            // 同步更新 location，讓語意搜尋生成的向量更貼近市區
-            userParams.location = '嘉義市';
         }
     }
 
@@ -299,40 +318,130 @@ export async function retrieveRelevantData(userParams, options = {}) {
       // 分別查詢景點和餐廳
       
       // 1. 查詢景點
-      const attractionQuery = buildSemanticQuery({
-        ...userParams,
-        preferences: userParams.preferences?.filter(p => !p.includes('美食') && !p.includes('餐廳'))
-      });
-      console.log('🔍 景點查詢:', attractionQuery);
+      // 建立更明確的景點查詢文本：移除餐廳相關詞彙，加入景點類型
+      const attractionPrefs = userParams.preferences?.filter(p => !p.includes('美食') && !p.includes('餐廳')) || [];
+      
+      // 改用更簡單直接的查詢語句，提高檢索命中率
+      // 舊的 buildSemanticQuery 產生的句子太長，可能導致向量稀釋
+      const locationTerm = filters.city || '台灣';
+      const prefTerm = attractionPrefs.length > 0 ? attractionPrefs.join('、') : '熱門觀光';
+      
+      // 修正：將用戶原始需求加入查詢，以便搜尋特定地點
+      let attractionQuery = `${locationTerm}的${prefTerm}景點、旅遊勝地、必去景點`;
+      // 如果用戶有特殊需求（通常包含特定地點名稱），加入查詢中
+      if (userParams.specialRequirements) {
+          // 簡單清理並截取，避免過長
+          const req = userParams.specialRequirements.replace(/\n/g, ' ').substring(0, 100);
+          attractionQuery += `。${req}`;
+      }
+      
+      console.log('🔍 景點查詢 (含用戶需求):', attractionQuery);
       
       const attractionFilters = {
         city: filters.city // 只使用城市篩選，不限制類別
       };
       
       // 2. 查詢餐廳
-      const restaurantQuery = `${filters.city || '台灣'}的特色美食餐廳、在地小吃、推薦料理`;
-      console.log('🔍 餐廳查詢:', restaurantQuery);
+      let restaurantQuery = `${filters.city || '台灣'}的特色美食餐廳、在地小吃、推薦料理`;
+      if (userParams.specialRequirements) {
+           const req = userParams.specialRequirements.replace(/\n/g, ' ').substring(0, 100);
+           restaurantQuery += `。${req}`;
+      }
+      console.log('🔍 餐廳查詢 (含用戶需求):', restaurantQuery);
 
       // 平行執行兩個查詢
-      const [attractionResults, restaurantResults] = await Promise.all([
+      let [attractionResults, restaurantResults] = await Promise.all([
+        // 景點查詢：不限制 category，讓所有非美食項都進來
         vectorSearch(
             attractionQuery,
-            attractionFilters,
-            attractionLimit * 3, // 修正：請求 3 倍數量的結果，以應對後續過濾掉餐廳後的損耗
+            { city: filters.city }, // 不設定 category，這樣會搜尋所有類別
+            attractionLimit, // 使用設定的限制數量
             threshold
         ),
+        // 餐廳查詢：明確指定 category 為美食餐廳
         vectorSearch(
             restaurantQuery,
             { city: filters.city, category: '美食餐廳' },
-            restaurantLimit,
-            threshold * 0.8 // 餐廳使用更低的閾值（0.52）以獲得更多選項
+            restaurantLimit, // 使用設定的限制數量
+            threshold * 0.8 // 餐廳使用更低的閾值以獲得更多選項
         )
       ]);
       
-      // 過濾掉美食餐廳，並只保留原本預期的數量
+      console.log(`📊 RAG 初步檢索: 景點候選 ${attractionResults.length} 筆, 餐廳候選 ${restaurantResults.length} 筆`);
+      
+      // ⚠️ 如果景點檢索結果為 0，進行多層級回退搜尋
+      if (attractionResults.length === 0) {
+        console.log(`❌ 景點檢索結果為 0！進行第一層回退搜尋...`);
+        
+        // 回退策略 1：移除所有過濾條件，直接全文搜尋
+        const fallbackQuery1 = `${filters.city}的觀光景點、旅遊景區、著名景點、風景區、文化、自然、歷史`;
+        const fallbackResults1 = await vectorSearch(
+          fallbackQuery1,
+          { city: null }, // 完全不過濾城市
+          days * 50, // 大幅增加數量
+          threshold * 0.4 // 大幅降低閾值
+        );
+        
+        console.log(`📊 回退搜尋 1 結果: ${fallbackResults1.length} 筆`);
+        
+        if (fallbackResults1.length > 0) {
+          attractionResults = fallbackResults1;
+          // 在應用層進行城市過濾
+          if (filters.city) {
+            const targetCity = filters.city.trim().toLowerCase();
+            const beforeFilter = attractionResults.length;
+            attractionResults = attractionResults.filter(item => {
+              const city = item.city ? item.city.trim().toLowerCase() : '';
+              const address = item.address || '';
+              return city === targetCity || city.startsWith(targetCity) || address.includes(filters.city);
+            });
+            console.log(`🏙️ 應用層城市過濾: ${beforeFilter} -> ${attractionResults.length} 筆`);
+          }
+        }
+      }
+      
+      // 如果還是找不到，進行回退策略 2：超寬鬆查詢
+      if (attractionResults.length === 0) {
+        console.log(`⚠️ 景點結果仍為 0，進行第二層回退搜尋（超寬鬆）...`);
+        
+        const fallbackQuery2 = `台灣景點`;
+        const fallbackResults2 = await vectorSearch(
+          fallbackQuery2,
+          { city: null }, // 不過濾
+          days * 100, // 非常大量檢索
+          threshold * 0.1 // 極低閾值
+        );
+        
+        console.log(`📊 回退搜尋 2 結果: ${fallbackResults2.length} 筆`);
+        
+        if (fallbackResults2.length > 0) {
+          attractionResults = fallbackResults2;
+          
+          // 在應用層進行城市過濾
+          if (filters.city) {
+            const targetCity = filters.city.trim().toLowerCase();
+            const beforeFilter = attractionResults.length;
+            attractionResults = attractionResults.filter(item => {
+              const city = item.city ? item.city.trim().toLowerCase() : '';
+              const address = item.address || '';
+              return city === targetCity || city.startsWith(targetCity) || address.includes(filters.city);
+            });
+            console.log(`🏙️ 應用層城市過濾: ${beforeFilter} -> ${attractionResults.length} 筆`);
+          }
+        }
+      }
+      
+      // 過濾掉美食餐廳，保留所有其他類別作為景點
+      const beforeCategoryFilter = attractionResults.length;
       attractions = attractionResults
-        .filter(item => item.category !== '美食餐廳')
-        .slice(0, attractionLimit);
+        .filter(item => item.category !== '美食餐廳');
+      
+      console.log(`📊 過濾美食餐廳後: 景點剩餘 ${attractions.length} 個 (原始 ${beforeCategoryFilter} 個)`);
+      if (attractions.length < 5) {
+          console.log('⚠️ 警告: 非餐廳類景點過少，列出剩餘景點:', attractions.map(a => a.name).join(', '));
+      }
+      
+      // 不再使用 .slice() 切割，讓所有找到的景點都能進入地理優化階段
       
       restaurants = restaurantResults;
       
@@ -367,8 +476,7 @@ export async function retrieveRelevantData(userParams, options = {}) {
       const mountainKeywords = ['阿里山', '梅山', '太平雲梯', '奮起湖', '瑞里', '達娜伊谷', '隙頂', '石棹', '二延平', '雲嶺之丘'];
       const mountainDistricts = ['阿里山鄉', '梅山鄉', '竹崎鄉', '番路鄉', '大埔鄉'];
       
-      const originalCount = attractions.length;
-      attractions = attractions.filter(item => {
+      const filteredAttractions = attractions.filter(item => {
         // 1. 檢查行政區：如果是山區鄉鎮，直接過濾
         if (item.district && mountainDistricts.some(d => item.district.includes(d))) {
           return false;
@@ -380,14 +488,20 @@ export async function retrieveRelevantData(userParams, options = {}) {
         
         return true;
       });
-      
-      if (attractions.length < originalCount) {
-        console.log(`🏔️ 已過濾掉 ${originalCount - attractions.length} 個嘉義山區景點，保留平原/市區景點`);
+
+      if (filteredAttractions.length > 0) {
+          if (attractions.length > filteredAttractions.length) {
+            console.log(`🏔️ 已過濾掉 ${attractions.length - filteredAttractions.length} 個嘉義山區景點，保留平原/市區景點`);
+          }
+          attractions = filteredAttractions;
+      } else {
+          console.warn(`⚠️ 嘉義山區過濾後結果為 0，為了避免無結果，保留原始 ${attractions.length} 個景點（包含山區）`);
+          // 不更新 attractions，保留原始列表
       }
 
       // 同樣過濾餐廳
       const originalRestCount = restaurants.length;
-      restaurants = restaurants.filter(item => {
+      const filteredRestaurants = restaurants.filter(item => {
         // 1. 檢查行政區
         if (item.district && mountainDistricts.some(d => item.district.includes(d))) {
           return false;
@@ -397,12 +511,20 @@ export async function retrieveRelevantData(userParams, options = {}) {
         if (mountainKeywords.some(kw => text.includes(kw))) return false;
         return true;
       });
-      if (restaurants.length < originalRestCount) {
-        console.log(`🍽️ 已過濾掉 ${originalRestCount - restaurants.length} 個嘉義山區餐廳`);
+
+      if (filteredRestaurants.length > 0) {
+          restaurants = filteredRestaurants;
+          if (originalRestCount > restaurants.length) {
+            console.log(`🍽️ 已過濾掉 ${originalRestCount - restaurants.length} 個嘉義山區餐廳`);
+          }
+      } else if (originalRestCount > 0) {
+           console.warn(`⚠️ 嘉義山區餐廳過濾後結果為 0，保留原始 ${originalRestCount} 個餐廳`);
+           // 不更新 restaurants
       }
     }
 
-    console.log(`✅ 檢索完成: ${attractions.length} 個景點, ${restaurants.length} 家餐廳`);
+    console.log(`✅ RAG 檢索完成: ${attractions.length} 個景點, ${restaurants.length} 家餐廳`);
+    console.log(`📍 這些景點將進入地理優化階段 (15km 過濾 + K-Means 分群)`);
     
     return {
       attractions,
@@ -435,13 +557,27 @@ export function formatRetrievalForPrompt(retrievalResult, days = null) {
   prompt += '以下是從資料庫檢索出的真實景點和餐廳，**已按地理位置優化分組**，請充分利用這些資源規劃豐富的行程：\n\n';
   
   // 如果有天數，進行地理優化分組
+  let useGeoOptimization = false;
   if (days && days > 0 && attractions.length > 0) {
+    const validCoordsCount = attractions.filter(a => (a.lat || a.latitude) && (a.lng || a.longitude)).length;
+    if (validCoordsCount >= 3) useGeoOptimization = true;
+    else console.warn(`⚠️ 景點座標資料不足 (${validCoordsCount}/${attractions.length})，跳過地理優化`);
+  }
+
+  if (useGeoOptimization) {
     const dailyItinerary = optimizeItinerary(attractions, days, {
-      maxDistanceFromCenter: 25,  // 統一限制在 25 公里以內 (避免因雙核心分佈導致過濾過多)
+      maxDistanceFromCenter: 30,  // 放寬到 30 公里，避免過度過濾
       sortByProximity: true,      // 按鄰近順序排列
-      minLocationsPerDay: 5       // 每天至少 5 個景點
+      minLocationsPerDay: 5       // 配合每天抓 15 個，降低保底數量
     });
     
+    // 檢查優化後是否還有景點
+    const totalOptimizedLocations = dailyItinerary.reduce((sum, day) => sum + day.locations.length, 0);
+    if (totalOptimizedLocations === 0) {
+        console.warn('⚠️ 地理優化後景點數量為 0，回退到原始列表模式');
+        useGeoOptimization = false;
+    }
+
     const stats = calculateItineraryDistance(dailyItinerary);
     
     prompt += `## 🗺️ 地理優化結果\n\n`;
@@ -452,22 +588,20 @@ export function formatRetrievalForPrompt(retrievalResult, days = null) {
     // 按天數輸出景點
     dailyItinerary.forEach((day, dayIndex) => {
       prompt += `### 第 ${day.day} 天建議景點 (${day.locations.length} 個可選)\n\n`;
-      prompt += `**區域中心**: 緯度 ${day.centroid.lat.toFixed(4)}, 經度 ${day.centroid.lng.toFixed(4)}\n`;
-      prompt += `**交通距離**: ${stats.dailyDistances[dayIndex].distance.toFixed(1)} km\n`;
-      prompt += `**⚠️ 最低要求**: 必須選擇至少 3-4 個景點\n`;
-      prompt += `**建議選擇**: 從以下 ${day.locations.length} 個景點中選擇 4-6 個，安排完整的一日行程\n\n`;
-      
-      day.locations.forEach((attr, index) => {
+    prompt += `**區域中心**: 緯度 ${day.centroid.lat.toFixed(4)}, 經度 ${day.centroid.lng.toFixed(4)}\n`;
+    prompt += `**交通距離**: ${stats.dailyDistances[dayIndex].distance.toFixed(1)} km\n`;
+    prompt += `**⚠️ 最低要求**: 必須選擇至少 3-4 個景點\n`;
+    prompt += `**建議選擇**: 從以下 ${day.locations.length} 個景點中選擇 4-6 個，安排完整的一日行程。請優先使用這些景點，不要浪費。\n\n`;      day.locations.forEach((attr, index) => {
         prompt += `${index + 1}. **${attr.name}**\n`;
         prompt += `   - 類別: ${attr.category}\n`;
         prompt += `   - 地址: ${attr.city} ${attr.district || ''}\n`;
         prompt += `   - 座標: (${(attr.lat || attr.latitude).toFixed(4)}, ${(attr.lng || attr.longitude).toFixed(4)})\n`;
         if (attr.description) {
-          const desc = attr.description.substring(0, 150);
-          prompt += `   - 描述: ${desc}${attr.description.length > 150 ? '...' : ''}\n`;
+          const desc = attr.description.substring(0, 80);
+          prompt += `   - 描述: ${desc}${attr.description.length > 80 ? '...' : ''}\n`;
         }
         if (attr.features && attr.features.length > 0) {
-          prompt += `   - 特色: ${attr.features.slice(0, 4).join(', ')}\n`;
+          prompt += `   - 特色: ${attr.features.slice(0, 3).join(', ')}\n`;
         }
         if (attr.rating) {
           prompt += `   - 評分: ${attr.rating}/5.0\n`;
@@ -488,8 +622,10 @@ export function formatRetrievalForPrompt(retrievalResult, days = null) {
     prompt += `4. 早上 9:00 開始，晚上 18:00-19:00 結束，妥善安排時間\n`;
     prompt += `5. 景點順序已優化為最短路徑，請按照順序安排\n\n`;
     
-  } else {
-    // 沒有天數或景點，使用原本的格式
+  } 
+  
+  if (!useGeoOptimization) {
+    // 沒有天數或景點，或者地理優化失敗，使用原本的格式
     if (attractions.length > 0) {
       prompt += '## 景點列表\n\n';
       attractions.forEach((attr, index) => {
@@ -497,74 +633,49 @@ export function formatRetrievalForPrompt(retrievalResult, days = null) {
         prompt += `   - 類別: ${attr.category}\n`;
         prompt += `   - 地址: ${attr.city} ${attr.district || ''}\n`;
         if (attr.description) {
-          prompt += `   - 描述: ${attr.description}\n`;
+          // 縮減描述長度以節省 Token
+          const desc = attr.description.length > 100 ? attr.description.substring(0, 100) + '...' : attr.description;
+          prompt += `   - 描述: ${desc}\n`;
         }
         if (attr.features && attr.features.length > 0) {
-          prompt += `   - 特色: ${attr.features.join(', ')}\n`;
-        }
-        if (attr.phone) {
-          prompt += `   - 電話: ${attr.phone}\n`;
-        }
-        if (attr.website) {
-          prompt += `   - 網站: ${attr.website}\n`;
+          prompt += `   - 特色: ${attr.features.slice(0, 2).join(', ')}\n`;
         }
         if (attr.opening_hours) {
-          prompt += `   - 營業時間: ${JSON.stringify(attr.opening_hours)}\n`;
+           // 簡化營業時間顯示
+           const hours = typeof attr.opening_hours === 'string' ? attr.opening_hours : '有營業';
+           prompt += `   - 營業時間: ${hours.substring(0, 20)}${hours.length > 20 ? '...' : ''}\n`;
         }
-        prompt += `   - 相關度: ${(attr.similarity * 100).toFixed(1)}%\n\n`;
+        prompt += '\n';
       });
     }
   }
   
   if (restaurants.length > 0) {
-    prompt += '## 🍽️ 餐廳列表\n\n';
-    prompt += `**⚠️ 最低要求**: 每天必須安排至少 2 餐（午餐 + 晚餐，或早餐 + 午餐 + 晚餐）\n`;
-    prompt += `**提示**: 以下有 ${restaurants.length} 間餐廳可選，請為每天安排 2-3 餐。建議選擇靠近當天景點的餐廳。\n\n`;
+    prompt += '## 🍽️ 餐廳列表（僅供午晚餐）\n\n';
     restaurants.forEach((rest, index) => {
       prompt += `${index + 1}. **${rest.name}**\n`;
       prompt += `   - 類別: ${rest.category}\n`;
-      prompt += `   - 地址: ${rest.city} ${rest.district || ''} ${rest.address || ''}\n`;
-      if (rest.lat && rest.lng) {
-        prompt += `   - 座標: (${rest.lat.toFixed(4)}, ${rest.lng.toFixed(4)})\n`;
-      }
+      prompt += `   - 地址: ${rest.city} ${rest.district || ''}\n`;
       if (rest.description) {
-        prompt += `   - 描述: ${rest.description.substring(0, 120)}${rest.description.length > 120 ? '...' : ''}\n`;
+        const desc = rest.description.length > 80 ? rest.description.substring(0, 80) + '...' : rest.description;
+        prompt += `   - 描述: ${desc}\n`;
       }
       if (rest.features && rest.features.length > 0) {
-        prompt += `   - 特色: ${rest.features.slice(0, 4).join(', ')}\n`;
+        prompt += `   - 特色: ${rest.features.slice(0, 2).join(', ')}\n`;
       }
       if (rest.rating) {
-        prompt += `   - 評分: ${rest.rating}/5.0\n`;
+        prompt += `   - 評分: ${rest.rating}\n`;
       }
-      if (rest.phone) {
-        prompt += `   - 電話: ${rest.phone}\n`;
-      }
-      prompt += `   - 相關度: ${(rest.similarity * 100).toFixed(1)}%\n\n`;
+      prompt += '\n';
     });
   }
   
   prompt += '\n---\n\n';
-  prompt += '## ✅ 行程規劃指南\n\n';
-  prompt += '### ⚠️ 強制要求（必須遵守）：\n';
-  prompt += '1. **每天至少 3-4 個景點**（建議 4-6 個）\n';
-  prompt += '2. **每天至少 2 餐**（午餐 + 晚餐必須有，早餐可選）\n';
-  prompt += '3. **不得出現超過 2 小時的空白時段**\n';
-  prompt += '4. **嚴格按照地理分組**，不要跨天調動景點\n\n';
-  prompt += '### 時間安排建議：\n';
-  prompt += '- **每天行程**: 09:00 開始 - 18:00/19:00 結束\n';
-  prompt += '- **景點停留**: 每個景點 1-2 小時（視景點規模調整）\n';
-  prompt += '- **用餐時間**: 早餐 30 分鐘，午餐/晚餐 1-1.5 小時\n';
-  prompt += '- **交通預留**: 景點間移動 15-30 分鐘\n\n';
-  prompt += '### 標準行程範例：\n';
-  prompt += `- **一日行程**: 09:00 早餐(可選) → 10:00 景點1 → 12:00 午餐 → 13:30 景點2 → 15:00 景點3 → 17:00 景點4 → 18:30 晚餐\n`;
-  prompt += `- **最少配置**: 3個景點 + 2餐（午餐+晚餐）\n`;
-  prompt += `- **推薦配置**: 4-5個景點 + 3餐（早餐+午餐+晚餐）\n\n`;
-  prompt += '### 必須遵守：\n';
-  prompt += '1. ✅ 使用以上真實景點和餐廳資料（已驗證存在）\n';
-  prompt += '2. ✅ 每天**必須**安排至少 3-4 個景點 + 2 餐\n';
-  prompt += '3. ✅ 按照景點順序安排（已優化為最短路徑）\n';
-  prompt += '4. ✅ 確保時間連貫，避免長時間空白\n';
-  prompt += '5. ✅ 所有景點都標註正確的名稱、地址和座標\n\n';
+  prompt += '## ✅ 規劃簡要指南\n\n';
+  prompt += '1. **每天 3-4 個景點** + **2 餐** (午/晚)。\n';
+  prompt += '2. **時間連貫**，09:00-19:00，避免空檔。\n';
+  prompt += '3. **地理順路**，不要來回奔波。\n';
+  prompt += '4. **必須使用**上述提供的真實地點。\n\n';
   
   return prompt;
 }
