@@ -69,7 +69,7 @@ function HomePage() {
                 </svg>
               </div>
               <h3 className="text-2xl font-semibold mb-3 text-text-light dark:text-text-dark">個人化行程</h3>
-              <p className="text-gray-600 dark:text-gray-400">根據您的興趣和預算，AI 為您量身打造獨一無二的旅遊路線。</p>
+              <p className="text-gray-600 dark:text-gray-400">根據您的興趣，AI 為您量身打造獨一無二的旅遊路線。</p>
             </div>
             <div className="text-center p-8 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300 transform hover:-translate-y-2 animate-on-scroll" style={{transitionDelay: '0.2s'}}>
               <div className="flex items-center justify-center h-16 w-16 rounded-full bg-primary/10 text-primary mx-auto mb-6">
@@ -86,8 +86,8 @@ function HomePage() {
                   <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
                 </svg>
               </div>
-              <h3 className="text-2xl font-semibold mb-3 text-text-light dark:text-text-dark">實時調整</h3>
-              <p className="text-gray-600 dark:text-gray-400">隨時隨地調整行程，應對突發狀況，讓旅行更靈活。</p>
+              <h3 className="text-2xl font-semibold mb-3 text-text-light dark:text-text-dark">真實資料</h3>
+              <p className="text-gray-600 dark:text-gray-400">使用者共同維護的景點和餐廳資訊，確保內容的準確性和時效性。</p>
             </div>
           </div>
         </div>

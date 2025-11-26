@@ -51,8 +51,7 @@ function ProfilePage({ session, onShowAuth }) {
   // 偏好設定數據
   const [preferencesData, setPreferencesData] = useState({
     dietaryRestrictions: [],
-    activityPreferences: [],
-    budgetRange: 'medium'
+    activityPreferences: []
   })
 
   // 載入用戶數據
@@ -70,8 +69,7 @@ function ProfilePage({ session, onShowAuth }) {
       if (session.user.user_metadata?.preferences) {
         setPreferencesData({
           dietaryRestrictions: session.user.user_metadata.preferences.dietaryRestrictions || [],
-          activityPreferences: session.user.user_metadata.preferences.activityPreferences || [],
-          budgetRange: session.user.user_metadata.preferences.budgetRange || 'medium'
+          activityPreferences: session.user.user_metadata.preferences.activityPreferences || []
         })
       }
     }
@@ -489,18 +487,16 @@ function ProfilePage({ session, onShowAuth }) {
             <div className="p-6 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50">
               <h2 className="text-2xl font-bold mb-6 text-zinc-900 dark:text-white">偏好設定</h2>
 
-              {/* 智慧規劃提示 */}
-              <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <div className="flex items-start gap-2 text-green-800 dark:text-green-200">
-                  <i className="fas fa-lightbulb mt-0.5"></i>
-                  <div className="text-sm">
-                    <p className="font-medium mb-1">智慧規劃</p>
-                    <p>您的偏好設定將自動應用於行程規劃，讓AI根據您的飲食習慣、活動偏好、預算範圍等因素，提供更符合您需求的個人化行程建議。您只需要設定一次，之後每次規劃都會自動應用這些偏好。</p>
-                  </div>
-                </div>
-              </div>
-
-              {message && (
+                  {/* 智慧規劃提示 */}
+                  <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="flex items-start gap-2 text-green-800 dark:text-green-200">
+                      <i className="fas fa-lightbulb mt-0.5"></i>
+                      <div className="text-sm">
+                        <p className="font-medium mb-1">智慧規劃</p>
+                        <p>您的偏好設定將自動應用於行程規劃，讓AI根據您的飲食習慣、活動偏好等因素，提供更符合您需求的個人化行程建議。您只需要設定一次，之後每次規劃都會自動應用這些偏好。</p>
+                      </div>
+                    </div>
+                  </div>              {message && (
                 <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                   <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
                     <i className="fas fa-check-circle"></i>
@@ -585,36 +581,6 @@ function ProfilePage({ session, onShowAuth }) {
                             className="rounded border-zinc-300 dark:border-zinc-600 text-primary focus:ring-primary"
                           />
                           <span className="text-sm">{option.icon} {option.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 預算範圍 */}
-                  <div>
-                    <label className="block text-lg font-medium text-zinc-700 dark:text-zinc-300 mb-3">
-                      預算範圍
-                    </label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { id: 'budget', label: '經濟型', icon: '💰', desc: '注重性價比' },
-                        { id: 'medium', label: '中等', icon: '💳', desc: '平衡品質與價格' },
-                        { id: 'luxury', label: '豪華型', icon: '💎', desc: '追求最佳體驗' }
-                      ].map((option) => (
-                        <label key={option.id} className="flex items-center gap-3 p-4 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer transition-colors">
-                          <input
-                            type="radio"
-                            name="budgetRange"
-                            value={option.id}
-                            checked={preferencesData.budgetRange === option.id}
-                            onChange={(e) => setPreferencesData({...preferencesData, budgetRange: e.target.value})}
-                            className="text-primary focus:ring-primary"
-                          />
-                          <div className="text-center">
-                            <div className="text-2xl mb-1">{option.icon}</div>
-                            <div className="font-medium text-sm">{option.label}</div>
-                            <div className="text-xs text-zinc-500 dark:text-zinc-400">{option.desc}</div>
-                          </div>
                         </label>
                       ))}
                     </div>

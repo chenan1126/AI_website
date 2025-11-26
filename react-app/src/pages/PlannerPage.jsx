@@ -9,8 +9,8 @@ const API_URL = '/api';
 // 範例提示語
 const EXAMPLE_PROMPTS = [
   "我想要去台南三天兩夜，喜歡古蹟和美食。",
-  "10/23 我想要去花蓮看海，帶著家裡的老人家。",
-  "明天我想要去一趟嘉義，體驗當地文化和美食。"
+  "我想要去花蓮看海，帶著家裡的老人家。",
+  "明天我想要去嘉義玩，喜歡博物館！"
 ];
 
 function PlannerPage() {
@@ -100,20 +100,6 @@ function PlannerPage() {
 
       if (activityPrefs.length > 0) {
         preferences.push(`活動偏好：${activityPrefs.join('、')}`);
-      }
-    }
-
-    // 預算範圍
-    if (userPreferences.budgetRange) {
-      const budgetLabels = {
-        budget: '經濟型',
-        medium: '中等',
-        luxury: '豪華型'
-      };
-
-      const budgetLabel = budgetLabels[userPreferences.budgetRange];
-      if (budgetLabel) {
-        preferences.push(`預算範圍：${budgetLabel}`);
       }
     }
 

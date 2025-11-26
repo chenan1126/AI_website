@@ -317,45 +317,49 @@ export async function retrieveRelevantData(userParams, options = {}) {
     if (separateQueries) {
       // 分別查詢景點和餐廳
       
-      // 1. 查詢景點
-      // 建立更明確的景點查詢文本：移除餐廳相關詞彙，加入景點類型
-      const attractionPrefs = userParams.preferences?.filter(p => !p.includes('美食') && !p.includes('餐廳')) || [];
-      
-      // 改用更簡單直接的查詢語句，提高檢索命中率
-      // 舊的 buildSemanticQuery 產生的句子太長，可能導致向量稀釋
       const locationTerm = filters.city || '台灣';
-      const prefTerm = attractionPrefs.length > 0 ? attractionPrefs.join('、') : '熱門觀光';
-      
-      // 修正：將用戶原始需求加入查詢，以便搜尋特定地點
-      let attractionQuery = `${locationTerm}的${prefTerm}景點、旅遊勝地、必去景點`;
-      // 如果用戶有特殊需求（通常包含特定地點名稱），加入查詢中
-      if (userParams.specialRequirements) {
-          // 簡單清理並截取，避免過長
-          const req = userParams.specialRequirements.replace(/\n/g, ' ').substring(0, 100);
-          attractionQuery += `。${req}`;
+
+      // 1. 查詢景點
+      // 只使用明確的活動偏好，去除其他干擾
+      let attractionQuery = '';
+      if (userParams.activityPreferences && userParams.activityPreferences.length > 0) {
+          console.log('🎯 使用明確的活動偏好進行景點搜尋:', userParams.activityPreferences);
+          attractionQuery = `${locationTerm}的${userParams.activityPreferences.join('、')}`;
+      } else {
+          // 沒有偏好時，只查地點
+          attractionQuery = `${locationTerm}景點`;
       }
       
-      console.log('🔍 景點查詢 (含用戶需求):', attractionQuery);
+      // 加入用戶原始需求 (去除偏好設定部分) - 已移除，避免關鍵字干擾
+      // if (userParams.specialRequirements) { ... }
       
-      const attractionFilters = {
-        city: filters.city // 只使用城市篩選，不限制類別
-      };
+      console.log('🔍 景點查詢 (簡化版):', attractionQuery);
       
       // 2. 查詢餐廳
-      let restaurantQuery = `${filters.city || '台灣'}的特色美食餐廳、在地小吃、推薦料理`;
-      if (userParams.specialRequirements) {
-           const req = userParams.specialRequirements.replace(/\n/g, ' ').substring(0, 100);
-           restaurantQuery += `。${req}`;
+      let restaurantQuery = '';
+      
+      // 只使用明確的飲食偏好
+      if (userParams.dietaryPreferences && userParams.dietaryPreferences.length > 0) {
+          console.log('🎯 使用明確的飲食偏好進行餐廳搜尋:', userParams.dietaryPreferences);
+          restaurantQuery = `${locationTerm}的${userParams.dietaryPreferences.join('、')}餐廳`;
+      } else {
+          // 沒有偏好時，只查地點美食
+          restaurantQuery = `${locationTerm}美食餐廳`;
       }
-      console.log('🔍 餐廳查詢 (含用戶需求):', restaurantQuery);
+
+      // 加入用戶原始需求 - 已移除
+      // if (userParams.specialRequirements) { ... }
+
+      console.log('🔍 餐廳查詢 (簡化版):', restaurantQuery);
 
       // 平行執行兩個查詢
-      let [attractionResults, restaurantResults] = await Promise.all([
-        // 景點查詢：不限制 category，讓所有非美食項都進來
+      // 增加檢索數量 (x3) 以應對過濾
+      let [attractionRawResults, restaurantResults] = await Promise.all([
+        // 景點查詢：不限制 category，這樣會搜尋所有類別
         vectorSearch(
             attractionQuery,
             { city: filters.city }, // 不設定 category，這樣會搜尋所有類別
-            attractionLimit, // 使用設定的限制數量
+            attractionLimit * 3, // 增加檢索數量以應對過濾
             threshold
         ),
         // 餐廳查詢：明確指定 category 為美食餐廳
@@ -367,76 +371,88 @@ export async function retrieveRelevantData(userParams, options = {}) {
         )
       ]);
       
-      console.log(`📊 RAG 初步檢索: 景點候選 ${attractionResults.length} 筆, 餐廳候選 ${restaurantResults.length} 筆`);
+      // 立即過濾掉美食餐廳，保留所有其他類別作為景點
+      attractions = attractionRawResults.filter(item => item.category !== '美食餐廳');
+      console.log(`📊 RAG 初步檢索: 原始 ${attractionRawResults.length} 筆 -> 過濾餐廳後 ${attractions.length} 筆`);
       
-      // ⚠️ 如果景點檢索結果為 0，進行多層級回退搜尋
-      if (attractionResults.length === 0) {
-        console.log(`❌ 景點檢索結果為 0！進行第一層回退搜尋...`);
+      // ⚠️ 如果景點檢索結果過少，進行多層級回退搜尋
+      if (attractions.length < 5) {
+        console.log(`❌ 景點過少 (${attractions.length} 個)！進行第一層回退搜尋...`);
         
         // 回退策略 1：移除所有過濾條件，直接全文搜尋
         const fallbackQuery1 = `${filters.city}的觀光景點、旅遊景區、著名景點、風景區、文化、自然、歷史`;
-        const fallbackResults1 = await vectorSearch(
+        let fallbackResults1 = await vectorSearch(
           fallbackQuery1,
           { city: null }, // 完全不過濾城市
           days * 50, // 大幅增加數量
           threshold * 0.4 // 大幅降低閾值
         );
         
-        console.log(`📊 回退搜尋 1 結果: ${fallbackResults1.length} 筆`);
+        // 過濾 fallback 1
+        fallbackResults1 = fallbackResults1.filter(item => item.category !== '美食餐廳');
         
         if (fallbackResults1.length > 0) {
-          attractionResults = fallbackResults1;
           // 在應用層進行城市過濾
           if (filters.city) {
             const targetCity = filters.city.trim().toLowerCase();
-            const beforeFilter = attractionResults.length;
-            attractionResults = attractionResults.filter(item => {
+            fallbackResults1 = fallbackResults1.filter(item => {
               const city = item.city ? item.city.trim().toLowerCase() : '';
               const address = item.address || '';
               return city === targetCity || city.startsWith(targetCity) || address.includes(filters.city);
             });
-            console.log(`🏙️ 應用層城市過濾: ${beforeFilter} -> ${attractionResults.length} 筆`);
           }
+          
+          // 合併結果 (去重)
+          const existingIds = new Set(attractions.map(a => a.id || a.name));
+          fallbackResults1.forEach(item => {
+              if (!existingIds.has(item.id || item.name)) {
+                  attractions.push(item);
+                  existingIds.add(item.id || item.name);
+              }
+          });
+          console.log(`📊 回退搜尋 1 後: 總共 ${attractions.length} 筆`);
         }
       }
       
       // 如果還是找不到，進行回退策略 2：超寬鬆查詢
-      if (attractionResults.length === 0) {
-        console.log(`⚠️ 景點結果仍為 0，進行第二層回退搜尋（超寬鬆）...`);
+      if (attractions.length < 5) {
+        console.log(`⚠️ 景點仍過少，進行第二層回退搜尋（超寬鬆）...`);
         
         const fallbackQuery2 = `台灣景點`;
-        const fallbackResults2 = await vectorSearch(
+        let fallbackResults2 = await vectorSearch(
           fallbackQuery2,
           { city: null }, // 不過濾
           days * 100, // 非常大量檢索
           threshold * 0.1 // 極低閾值
         );
         
-        console.log(`📊 回退搜尋 2 結果: ${fallbackResults2.length} 筆`);
+        // 過濾 fallback 2
+        fallbackResults2 = fallbackResults2.filter(item => item.category !== '美食餐廳');
         
         if (fallbackResults2.length > 0) {
-          attractionResults = fallbackResults2;
-          
           // 在應用層進行城市過濾
           if (filters.city) {
             const targetCity = filters.city.trim().toLowerCase();
-            const beforeFilter = attractionResults.length;
-            attractionResults = attractionResults.filter(item => {
+            fallbackResults2 = fallbackResults2.filter(item => {
               const city = item.city ? item.city.trim().toLowerCase() : '';
               const address = item.address || '';
               return city === targetCity || city.startsWith(targetCity) || address.includes(filters.city);
             });
-            console.log(`🏙️ 應用層城市過濾: ${beforeFilter} -> ${attractionResults.length} 筆`);
           }
+          
+          // 合併結果 (去重)
+          const existingIds = new Set(attractions.map(a => a.id || a.name));
+          fallbackResults2.forEach(item => {
+              if (!existingIds.has(item.id || item.name)) {
+                  attractions.push(item);
+                  existingIds.add(item.id || item.name);
+              }
+          });
+          console.log(`📊 回退搜尋 2 後: 總共 ${attractions.length} 筆`);
         }
       }
       
-      // 過濾掉美食餐廳，保留所有其他類別作為景點
-      const beforeCategoryFilter = attractionResults.length;
-      attractions = attractionResults
-        .filter(item => item.category !== '美食餐廳');
-      
-      console.log(`📊 過濾美食餐廳後: 景點剩餘 ${attractions.length} 個 (原始 ${beforeCategoryFilter} 個)`);
+      console.log(`📊 最終景點數量: ${attractions.length} 個`);
       if (attractions.length < 5) {
           console.log('⚠️ 警告: 非餐廳類景點過少，列出剩餘景點:', attractions.map(a => a.name).join(', '));
       }

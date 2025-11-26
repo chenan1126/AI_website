@@ -31,37 +31,44 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 async function parseQueryWithGemini(query, res) {
     if (!GEMINI_API_KEY) {
         console.error("缺少 Gemini API Key");
-        return { city: "台灣", days: "一日遊", error: "錯誤: 未設置 Gemini API Key" };
+        return { city: "台灣", days: "一日遊", activity_preferences: [], dietary_preferences: [], error: "錯誤: 未設置 Gemini API Key" };
     }
     try {
         // console.log(`開始使用 Gemini 解析用戶查詢: ${query}`);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
-        const prompt = `你是一個專門解析旅遊需求的 AI。請從以下句子中提取『主要遊玩地點所屬的台灣縣市』和『旅遊天數』。
+        const prompt = `你是一個專門解析旅遊需求的 AI。請從以下句子中提取『主要遊玩地點所屬的台灣縣市』、『旅遊天數』、『活動偏好』和『飲食偏好』。
 
 句子: "${query}"
 
 你的回應必須是可直接解析的純 JSON 格式，不包含任何其他說明文字、markdown 標籤或程式碼區塊。
 絕對不要使用 \`\`\`json 或任何類似的標籤。
-JSON 格式: {"city": "縣市", "days": "天數"}
+JSON 格式: {
+    "city": "縣市", 
+    "days": "天數",
+    "activity_preferences": ["偏好1", "偏好2"],
+    "dietary_preferences": ["偏好1", "偏好2"]
+}
+
+說明：
+1. 'city': 必須是台灣的真實縣市名稱（例如：台北市、台中市、嘉義縣、花蓮縣等）。
+2. 'days': 如果沒有明確天數，請根據上下文推斷（例如「週末」是兩天），若無法推斷則預設為「一日遊」。
+3. 'activity_preferences': 提取用戶對景點類型、特定主題或具體活動的偏好（例如：自然、古蹟、親子、爬山、看海、室內、戶外、看貓、有冷氣、文青等）。請盡量保留用戶的具體形容詞。若無則回傳空陣列。
+4. 'dietary_preferences': 提取用戶對食物的偏好（例如：小吃、海鮮、素食、甜點、餐廳等）。若無則回傳空陣列。
 
 範例：
-- 輸入: "想去阿里山看日出"
-- 輸出: {"city": "嘉義縣", "days": "一日遊"}
-- 輸入: "明天去高雄玩兩天"
-- 輸出: {"city": "高雄市", "days": "兩天"}
-- 輸入: "週末去台中"
-- 輸出: {"city": "台中市", "days": "兩天"}
+- 輸入: "想去阿里山看日出，順便吃火雞肉飯"
+- 輸出: {"city": "嘉義縣", "days": "一日遊", "activity_preferences": ["自然", "日出", "山林"], "dietary_preferences": ["火雞肉飯", "小吃"]}
+- 輸入: "明天去高雄玩兩天，想去駁二跟吃海鮮"
+- 輸出: {"city": "高雄市", "days": "兩天", "activity_preferences": ["藝文", "展覽"], "dietary_preferences": ["海鮮"]}
+- 輸入: "明天我想要去一趟嘉義，想要看貓"
+- 輸出: {"city": "嘉義市", "days": "一日遊", "activity_preferences": ["貓咪", "動物", "寵物"], "dietary_preferences": []}
 - 輸入: "去嘉義玩"
-- 輸出: {"city": "嘉義市", "days": "一日遊"}
-- 輸入: "去台北玩，從台北車站出發"
-- 輸出: {"city": "台北市", "days": "一日遊"}
+- 輸出: {"city": "嘉義市", "days": "一日遊", "activity_preferences": [], "dietary_preferences": []}
 
 規則：
-1. 'city' 必須是台灣的真實縣市名稱（例如：台北市、台中市、嘉義縣、花蓮縣等）。
-2. 'days' 如果沒有明確天數，請根據上下文推斷（例如「週末」是兩天），若無法推斷則預設為「一日遊」。
-3. **特別規則**：如果用戶只提到「嘉義」而沒有明確說「嘉義縣」或「阿里山」等山區地名，請務必將 'city' 設為「嘉義市」。這是為了區分市區旅遊和山區旅遊。
-4. **排除交通節點**：如果用戶提到「車站」、「高鐵」、「機場」等作為起點、終點或集合點，請提取主要的遊玩城市或區域。`;
+1. **特別規則**：如果用戶只提到「嘉義」而沒有明確說「嘉義縣」或「阿里山」等山區地名，請務必將 'city' 設為「嘉義市」。這是為了區分市區旅遊和山區旅遊。
+2. **排除交通節點**：如果用戶提到「車站」、「高鐵」、「機場」等作為起點、終點或集合點，請提取主要的遊玩城市或區域。`;
 
         const result = await model.generateContent(
             prompt,
@@ -82,7 +89,13 @@ JSON 格式: {"city": "縣市", "days": "天數"}
 
         if (!parsedData.days || !parsedData.city) {
              console.error(`Gemini 解析結果缺少必要欄位: ${JSON.stringify(parsedData)}`);
-             return { city: parsedData.city || "台灣", days: parsedData.days || "一日遊", error: "解析不完整" };
+             return { 
+                 city: parsedData.city || "台灣", 
+                 days: parsedData.days || "一日遊", 
+                 activity_preferences: parsedData.activity_preferences || [],
+                 dietary_preferences: parsedData.dietary_preferences || [],
+                 error: "解析不完整" 
+             };
         }
         // console.log(`Gemini 解析完成:`, parsedData);
         return parsedData;
@@ -90,7 +103,7 @@ JSON 格式: {"city": "縣市", "days": "天數"}
     } catch (e) {
         console.error(`使用 Gemini 解析用戶查詢時出錯: ${e}`);
         // 降級處理：如果解析失敗，至少返回一個預設值
-        return { city: "台灣", days: "一日遊", error: `解析查詢時出錯: ${e.message}` };
+        return { city: "台灣", days: "一日遊", activity_preferences: [], dietary_preferences: [], error: `解析查詢時出錯: ${e.message}` };
     }
 }
 
@@ -143,9 +156,7 @@ function sanitizeRagData(data) {
         if (!Array.isArray(items)) return [];
         return items.map(item => ({
             name: item.name,
-            address: item.address || item.vicinity || item.formatted_address || '',
-            rating: item.rating, // 保留評分 (數字，佔用極小)
-            user_ratings_total: item.user_ratings_total // 保留評論數 (數字，佔用極小)
+            address: item.address || item.vicinity || item.formatted_address || ''
         }));
     };
     return {
@@ -155,26 +166,27 @@ function sanitizeRagData(data) {
 }
 
 /**
- * 從用戶查詢中提取旅遊偏好關鍵字
+ * 從用戶查詢中提取結構化的偏好設定（來自前端整合的 Prompt）
  */
-function extractPreferencesFromQuery(query) {
-    const preferences = [];
-    const keywords = {
-        '親子': ['親子', '小孩', '兒童', '家庭'],
-        '美食': ['美食', '小吃', '餐廳', '吃'],
-        '文化': ['文化', '古蹟', '歷史', '博物館'],
-        '自然': ['自然', '山', '海', '風景', '步道'],
-        '休閒': ['休閒', '放鬆', '漫步'],
-        '拍照': ['拍照', '打卡', '網美']
+function extractStructuredPreferences(query) {
+    const result = {
+        activityPreferences: [],
+        dietaryPreferences: []
     };
-    
-    for (const [pref, words] of Object.entries(keywords)) {
-        if (words.some(word => query.includes(word))) {
-            preferences.push(pref);
-        }
+
+    // Extract Activity Preferences
+    const activityMatch = query.match(/活動偏好：([^\n]+)/);
+    if (activityMatch) {
+        result.activityPreferences = activityMatch[1].split('、').map(s => s.trim());
     }
-    
-    return preferences.length > 0 ? preferences : ['一般旅遊'];
+
+    // Extract Dietary Preferences
+    const dietaryMatch = query.match(/飲食偏好：([^\n]+)/);
+    if (dietaryMatch) {
+        result.dietaryPreferences = dietaryMatch[1].split('、').map(s => s.trim());
+    }
+
+    return result;
 }
 
 function buildPrompt(question, location, days, dates, weatherData, ragContext = null) {
@@ -391,15 +403,37 @@ export default async function handler(req, res) {
         let ragPromise = Promise.resolve(null);
         if (useRAG) {
             console.log('🔍 開始 RAG 檢索...');
+            
+            // 優先使用 Gemini 解析出的偏好
+            // 如果前端有傳送結構化的偏好字串（例如 "活動偏好：..."），Gemini 應該也能解析出來
+            // 但為了保險起見，我們也可以保留 extractStructuredPreferences 作為備用或合併
+            
+            const structuredPrefs = extractStructuredPreferences(naturalLanguageQuery);
+            
+            // 合併偏好 (去重)
+            const activityPrefs = [...new Set([
+                ...(parsedQuery.activity_preferences || []),
+                ...(structuredPrefs.activityPreferences || [])
+            ])];
+            
+            const dietaryPrefs = [...new Set([
+                ...(parsedQuery.dietary_preferences || []),
+                ...(structuredPrefs.dietaryPreferences || [])
+            ])];
+
+            console.log('🧩 [RAG] 解析出的偏好 (Gemini + 結構化):', JSON.stringify({ activityPrefs, dietaryPrefs }));
+
             const userParams = {
                 city: city,
                 days: tripDays,
-                tripType: naturalLanguageQuery.includes('親子') ? '親子遊' : 
-                          naturalLanguageQuery.includes('美食') ? '美食之旅' : 
-                          naturalLanguageQuery.includes('文化') ? '文化之旅' : '一般旅遊',
-                preferences: extractPreferencesFromQuery(naturalLanguageQuery),
+                tripType: naturalLanguageQuery.includes('親子') ? '親子遊' : '一般旅遊',
+                preferences: [...activityPrefs, ...dietaryPrefs], // 綜合偏好
+                activityPreferences: activityPrefs,
+                dietaryPreferences: dietaryPrefs,
                 specialRequirements: naturalLanguageQuery
             };
+            
+            console.log('📤 [RAG] 傳送給檢索器的參數:', JSON.stringify(userParams, null, 2));
             
             // 執行 RAG 檢索 (不設超時，確保必須使用 RAG)
             ragPromise = retrieveRelevantData(userParams, {
@@ -452,6 +486,14 @@ export default async function handler(req, res) {
             // 建立對應的提示
             const prompt = buildPrompt(finalQuestion, city, tripDays, tripDates, weatherData, ragContextForGeneration);
 
+            if (useRAGForGeneration) {
+                console.log('📝 [RAG模式] 最終發送給 Gemini 的 Prompt (前 1000 字):');
+                console.log('--------------------------------------------------');
+                console.log(prompt.substring(0, 1000));
+                console.log('... (略) ...');
+                console.log('--------------------------------------------------');
+            }
+
             // Gemini Streaming
             // RAG 使用 gemini-2.5-flash (平衡速度與指令遵循)，純 AI 使用 gemini-2.5-flash (最新模型)
             const modelName = useRAGForGeneration ? "gemini-2.5-flash" : "gemini-2.5-flash";
@@ -482,41 +524,26 @@ export default async function handler(req, res) {
             // 為了避免 Vercel Timeout，將地圖資料補充移至前端執行
             // tripData = await enrichWithMapsData(tripData, cityForWeather, { insertTravelTimes: false });
 
-            // 1.5 嘗試從 RAG 資料中回填座標，以便進行地理優化
+            // 1.5 準備 RAG 地址對照表，並進行地圖資料補充
+            // 用戶需求：RAG 資料已有正確地址，優先使用 RAG 地址進行搜尋與顯示
+            // 但 RAG 缺乏 Rating 與 Opening Hours，因此仍需調用 Google Maps API 補充
+            const knownAddresses = {};
             if (useRAGForGeneration && ragRawData) {
-                const coordMap = new Map();
                 const addToMap = (items) => {
                     if (!items) return;
                     items.forEach(item => {
-                        if (item.name) {
-                            coordMap.set(item.name, { lat: item.lat || item.latitude, lng: item.lng || item.longitude });
+                        if (item.name && (item.address || item.vicinity || item.formatted_address)) {
+                            knownAddresses[item.name] = item.address || item.vicinity || item.formatted_address;
                         }
                     });
                 };
                 addToMap(ragRawData.attractions);
                 addToMap(ragRawData.restaurants);
-
-                tripData.sections.forEach(section => {
-                    // 如果已經有座標就跳過
-                    if (section.lat && section.lng) return;
-
-                    // 嘗試精確匹配
-                    if (coordMap.has(section.location)) {
-                        const coords = coordMap.get(section.location);
-                        section.lat = coords.lat;
-                        section.lng = coords.lng;
-                    } else {
-                        // 嘗試模糊匹配
-                        for (const [name, coords] of coordMap.entries()) {
-                            if (section.location.includes(name) || name.includes(section.location)) {
-                                section.lat = coords.lat;
-                                section.lng = coords.lng;
-                                break;
-                            }
-                        }
-                    }
-                });
             }
+
+            // 1. Enrich with Maps Data (but skip travel times for now)
+            // 恢復地圖資料補充功能，並傳入 knownAddresses 以提高準確度
+            tripData = await enrichWithMapsData(tripData, city, { insertTravelTimes: false }, knownAddresses);
 
             // 1.6 補充剩餘缺失的座標 (使用 Google Maps API 輕量查詢)
             // 這是為了確保 GeoOptimizer 能正常運作，即使 RAG 沒有覆蓋到所有地點

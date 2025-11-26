@@ -380,17 +380,26 @@ export async function getMultiDayWeatherSync(cityName, dates) {
  * 異步獲取 Google Maps 景點詳情
  * @param {string} placeName - 景點名稱
  * @param {string} [city="台灣"] - 縣市偏好
+ * @param {string} [knownAddress=null] - 已知的準確地址 (來自 RAG)，用於提高搜尋準確度
  * @returns {Promise<object>} 景點詳情或錯誤物件
  */
-export async function getPlaceDetailsSync(placeName, city = "台灣") {
+export async function getPlaceDetailsSync(placeName, city = "台灣", knownAddress = null) {
     console.log(`[Maps] 正在查詢景點「${placeName}」的詳細資訊（限制在：${city}）...`);
     if (!GOOGLE_MAPS_API_KEY) {
         console.error("[Maps] Google Maps API Key 未設置");
         return { error: "Google Maps API Key 未設置" };
     }
     try {
-        // 1. Find Place ID - 在查詢中直接加入城市限制
-        const searchQuery = `${placeName} ${city}`;
+        // 1. Find Place ID
+        // 如果有已知地址，優先使用「名稱 + 地址」進行搜尋，準確度最高
+        let searchQuery = `${placeName} ${city}`;
+        if (knownAddress) {
+            // 移除地址中的郵遞區號 (3-5碼數字)，避免干擾搜尋
+            const cleanAddress = knownAddress.replace(/^\d{3,5}\s*/, '');
+            searchQuery = `${placeName} ${cleanAddress}`;
+            console.log(`[Maps] 使用 RAG 地址輔助搜尋: ${searchQuery}`);
+        }
+
         const findPlaceUrl = new URL("https://maps.googleapis.com/maps/api/place/findplacefromtext/json");
         findPlaceUrl.searchParams.append('input', searchQuery);
         findPlaceUrl.searchParams.append('inputtype', 'textquery');
@@ -1008,16 +1017,17 @@ export async function addTravelTimes(tripData) {
  * @param {object} tripData - 原始行程數據
  * @param {string} city - 縣市偏好
  * @param {object} options - 選項 { insertTravelTimes: boolean }
+ * @param {object} knownAddresses - 已知的地址對照表 { "景點名稱": "地址" }
  * @returns {Promise<object>} 豐富化後的行程數據
  */
-export async function enrichWithMapsData(tripData, city, options = { insertTravelTimes: true }) {
+export async function enrichWithMapsData(tripData, city, options = { insertTravelTimes: true }, knownAddresses = {}) {
     if (!tripData.sections) return tripData;
 
     const places = [...new Set(tripData.sections.map(s => s.location).filter(Boolean))];
 
     const placesData = {};
     const placePromises = places.map(placeName =>
-        getPlaceDetailsSync(placeName, city).then(mapsData => {
+        getPlaceDetailsSync(placeName, city, knownAddresses[placeName]).then(mapsData => {
             if (!mapsData.error) {
                 placesData[placeName] = mapsData;
             } else if (mapsData.error && (mapsData.error.includes('歇業') || mapsData.error.includes('closed'))) {
@@ -1049,7 +1059,8 @@ export async function enrichWithMapsData(tripData, city, options = { insertTrave
                 enrichedSection.maps_data = {
                     rating: mapsInfo.rating || 0,
                     user_ratings_total: mapsInfo.user_ratings_total || 0,
-                    address: mapsInfo.address || '',
+                    // 如果有 RAG 提供的已知地址，優先使用它作為顯示地址，避免 Google Maps 格式不一致
+                    address: knownAddresses[placeName] || mapsInfo.address || '',
                     google_maps_name: mapsInfo.name || placeName,
                     wilson_score: calculateWilsonScore(mapsInfo.rating, mapsInfo.user_ratings_total),
                     opening_hours: mapsInfo.opening_hours,
@@ -1068,6 +1079,14 @@ export async function enrichWithMapsData(tripData, city, options = { insertTrave
                     };
                 }
             }
+        } else if (knownAddresses[placeName]) {
+            // 如果 Google Maps 查不到，但 RAG 有地址，至少填入地址
+            enrichedSection.maps_data = {
+                address: knownAddresses[placeName],
+                google_maps_name: placeName,
+                rating: 0,
+                user_ratings_total: 0
+            };
         }
         return enrichedSection;
     });
